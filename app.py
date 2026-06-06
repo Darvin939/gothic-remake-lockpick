@@ -24,7 +24,7 @@ template_dir = resource_path('templates')
 app = Flask(__name__, template_folder=template_dir)
 
 app.secret_key = 'castle_cracker_secret_key_2024'
-db = Database('castles.db')
+db = Database('lockpicker.db')
 
 
 class Config:
@@ -347,6 +347,6 @@ def api_castles():
 
 if __name__ == '__main__':
     print("🏰 Castle Cracker запущен!")
-    print("📁 База данных: castles.db")
+    print("📁 База данных: lockpicker.db")
     print("🌐 http://localhost:5000")
     app.run(port=5000)

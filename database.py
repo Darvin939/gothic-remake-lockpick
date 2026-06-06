@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any, Tuple
 
 
 class Database:
-    def __init__(self, db_path='castles.db'):
+    def __init__(self, db_path='lockpicker.db'):
         self.db_path = db_path
         self.init_db()
 
