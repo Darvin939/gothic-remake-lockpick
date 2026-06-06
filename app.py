@@ -719,7 +719,7 @@ def is_automation_active(castle_id):
 
 
 if __name__ == '__main__':
-    print("🏰 Castle Cracker запущен!")
+    print("🏰 Gothic1 Remake Lockpicker запущен!")
     print("📁 База данных: lockpicker.db")
     print("🌐 http://localhost:5000")
     app.run(port=5000)
