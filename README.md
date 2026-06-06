@@ -38,8 +38,8 @@
 
 1. **Клонируйте репозиторий**
 ```bash
-git clone https://github.com/yourusername/castle-cracker.git
-cd castle-cracker
+git clone https://github.com/Darvin939/gothic-remake-lockpick.git
+cd gothic-remake-lockpick
 ```
 
 ### Запуск и компиляция
