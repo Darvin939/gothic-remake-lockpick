@@ -349,4 +349,4 @@ if __name__ == '__main__':
     print("🏰 Castle Cracker запущен!")
     print("📁 База данных: castles.db")
     print("🌐 http://localhost:5000")
-    app.run(debug=True, port=5000)
+    app.run(port=5000)
