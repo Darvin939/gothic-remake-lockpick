@@ -176,20 +176,20 @@
             const card = document.createElement('div');
             card.className = 'card mb-2 dependency-card';
             card.innerHTML = `
-                <div class="card-header bg-light py-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">
-                            <i class="fas fa-cube"></i> Ячейка ${i}
-                        </h6>
-                        <button type="button" class="btn btn-sm btn-success" onclick="addDependency(${i})">
-                            <i class="fas fa-plus"></i> Добавить
-                        </button>
-                    </div>
+            <div class="card-header bg-light py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cube"></i> Ячейка ${i}
+                    </h6>
+                    <button type="button" class="btn btn-sm btn-success" onclick="addDependency(${i})">
+                        <i class="fas fa-plus"></i> Добавить
+                    </button>
                 </div>
-                <div class="card-body p-2">
-                    <div id="deps-${i}" class="dependencies-list"></div>
-                </div>
-            `;
+            </div>
+            <div class="card-body p-2">
+                <div id="deps-${i}" class="dependencies-list"></div>
+            </div>
+        `;
             container.appendChild(card);
 
             const depsContainer = document.getElementById(`deps-${i}`);
@@ -219,47 +219,79 @@
         rowDiv.className = 'dependency-row mb-1 p-1';
         rowDiv.id = rowId;
         rowDiv.innerHTML = `
-            <div class="row g-1 align-items-center">
-                <div class="col-5">
-                    <select class="form-select form-select-sm dep-target" data-source="${sourceCell}" data-row="${rowId}" style="width: 100%;">
-                        ${generateCellOptions(sourceCell, targetCell)}
-                    </select>
-                </div>
-                <div class="col-4">
-                    <select class="form-select form-select-sm dep-sign" data-source="${sourceCell}" data-row="${rowId}">
-                        <option value="+" ${sign === '+' ? 'selected' : ''}>➕ туда же</option>
-                        <option value="-" ${sign === '-' ? 'selected' : ''}>➖ противоположно</option>
-                    </select>
-                </div>
-                <div class="col-3">
-                    <button type="button" class="btn btn-danger btn-sm w-100 py-0" onclick="removeDependency('${rowId}', ${sourceCell})">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
+        <div class="row g-1 align-items-center">
+            <div class="col-5">
+                <select class="form-select form-select-sm dep-target" data-source="${sourceCell}" data-row="${rowId}" style="width: 100%;">
+                    ${generateCellOptions(sourceCell, targetCell)}
+                </select>
             </div>
-        `;
+            <div class="col-4">
+                <select class="form-select form-select-sm dep-sign" data-source="${sourceCell}" data-row="${rowId}">
+                    <option value="+" ${sign === '+' ? 'selected' : ''}>➕ туда же</option>
+                    <option value="-" ${sign === '-' ? 'selected' : ''}>➖ противоположно</option>
+                </select>
+            </div>
+            <div class="col-3">
+                <button type="button" class="btn btn-danger btn-sm w-100 py-0" onclick="removeDependency('${rowId}', ${sourceCell})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
 
         container.appendChild(rowDiv);
 
         const targetSelect = rowDiv.querySelector('.dep-target');
         const signSelect = rowDiv.querySelector('.dep-sign');
 
-        targetSelect.addEventListener('change', function() {
-            if (this.value) {
-                updateDependencyData(sourceCell, this.value, signSelect.value);
-            }
-        });
+        // Для новой зависимости (без targetCell) - нужно принудительно вызвать change при первом выборе
+        if (targetCell === null) {
+            // Добавляем обработчик, который сработает при первом изменении
+            targetSelect.addEventListener('change', function() {
+                if (this.value) {
+                    updateDependencyData(sourceCell, this.value, signSelect.value);
+                    // Убираем пустую опцию после выбора
+                    const emptyOption = this.querySelector('option[value=""]');
+                    if (emptyOption) {
+                        emptyOption.remove();
+                    }
+                }
+            });
+        } else {
+            // Для существующей зависимости - просто добавляем обработчик
+            targetSelect.addEventListener('change', function() {
+                if (this.value) {
+                    updateDependencyData(sourceCell, this.value, signSelect.value);
+                }
+            });
+        }
 
         signSelect.addEventListener('change', function() {
             const targetValue = targetSelect.value;
-            if (targetValue) {
+            if (targetValue && targetValue !== '') {
                 updateDependencyData(sourceCell, targetValue, this.value);
             }
         });
+
+        // Если это новая зависимость и нет выбранного значения, показываем предупреждение
+        if (targetCell === null) {
+            // Добавляем стиль для пустой опции
+            const emptyOption = targetSelect.querySelector('option[value=""]');
+            if (emptyOption) {
+                emptyOption.style.color = '#6c757d';
+                emptyOption.style.fontStyle = 'italic';
+            }
+        }
     }
 
     function generateCellOptions(sourceCell, selectedValue) {
         let options = '';
+
+        // Добавляем пустую опцию-заглушку ТОЛЬКО для новых зависимостей (когда selectedValue === null)
+        if (selectedValue === null || selectedValue === undefined) {
+            options += `<option value="" selected disabled style="color: #6c757d; font-style: italic;">— Выберите ячейку —</option>`;
+        }
+
         for (let i = 1; i <= currentCells; i++) {
             if (i !== sourceCell) {
                 const selected = (selectedValue === i) ? 'selected' : '';
@@ -290,7 +322,7 @@
     }
 
     function addDependency(sourceCell) {
-        addDependencyRow(sourceCell);
+        addDependencyRow(sourceCell, null, '+');
     }
 
     function updateDependencyData(sourceCell, targetCell, sign) {
