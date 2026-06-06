@@ -29,7 +29,7 @@
 ## 📦 Установка
 
 ### Требования
-- Python 3.8 или выше
+- [Python 3.8 или выше](https://www.python.org/downloads/)
 - pip (менеджер пакетов Python)
 
 ### Шаги установки
