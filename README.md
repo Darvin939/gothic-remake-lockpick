@@ -38,3 +38,8 @@
 ```bash
 git clone https://github.com/yourusername/castle-cracker.git
 cd castle-cracker
+
+### Запуск и компиляция
+1. pip install -r requirements.txt
+2. Запустите python app.py
+3. Поле успешного запуска перейдите по адресу http://localhost:5000
