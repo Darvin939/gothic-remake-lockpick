@@ -38,6 +38,7 @@
 ```bash
 git clone https://github.com/yourusername/castle-cracker.git
 cd castle-cracker
+```
 
 ### Запуск и компиляция
 1. pip install -r requirements.txt
