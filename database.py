@@ -22,67 +22,26 @@ class Database:
 
             # Создание таблицы замков
             cursor.execute('''
-                           CREATE TABLE IF NOT EXISTS castles
-                           (
-                               id
-                               INTEGER
-                               PRIMARY
-                               KEY
-                               AUTOINCREMENT,
-                               name
-                               TEXT
-                               UNIQUE
-                               NOT
-                               NULL,
-                               cells
-                               INTEGER
-                               NOT
-                               NULL,
-                               start_positions
-                               TEXT
-                               NOT
-                               NULL,
-                               dependencies
-                               TEXT
-                               NOT
-                               NULL,
-                               has_solution
-                               BOOLEAN
-                               DEFAULT
-                               0,
-                               solution_length
-                               INTEGER
-                               DEFAULT
-                               0,
-                               created_at
-                               TIMESTAMP
-                               DEFAULT
-                               CURRENT_TIMESTAMP,
-                               updated_at
-                               TIMESTAMP
-                               DEFAULT
-                               CURRENT_TIMESTAMP
+                           CREATE TABLE IF NOT EXISTS castles (
+                                                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                                  name TEXT UNIQUE NOT NULL,
+                                                                  cells INTEGER NOT NULL,
+                                                                  start_positions TEXT NOT NULL,
+                                                                  dependencies TEXT NOT NULL,
+                                                                  has_solution BOOLEAN DEFAULT 0,
+                                                                  solution_length INTEGER DEFAULT 0,
+                                                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                                                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                            )
                            ''')
 
             # Создание таблицы глобальных настроек
             cursor.execute('''
-                           CREATE TABLE IF NOT EXISTS settings
-                           (
-                               key
-                               TEXT
-                               PRIMARY
-                               KEY,
-                               value
-                               TEXT
-                               NOT
-                               NULL,
-                               description
-                               TEXT,
-                               updated_at
-                               TIMESTAMP
-                               DEFAULT
-                               CURRENT_TIMESTAMP
+                           CREATE TABLE IF NOT EXISTS settings (
+                                                                   key TEXT PRIMARY KEY,
+                                                                   value TEXT NOT NULL,
+                                                                   description TEXT,
+                                                                   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                            )
                            ''')
 
@@ -244,6 +203,16 @@ class Database:
                 castle['settings'] = settings
 
             return castles, total
+
+    def check_castle_name_exists(self, name: str, exclude_id: int = None) -> bool:
+        """Проверка существования замка с точным совпадением имени"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if exclude_id:
+                cursor.execute('SELECT id FROM castles WHERE name = ? AND id != ?', (name, exclude_id))
+            else:
+                cursor.execute('SELECT id FROM castles WHERE name = ?', (name,))
+            return cursor.fetchone() is not None
 
     def update_castle(self, castle_id: int, castle_data: Dict):
         """Обновление замка с проверкой настроек"""

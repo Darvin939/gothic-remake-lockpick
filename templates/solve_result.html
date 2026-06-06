@@ -25,11 +25,11 @@
                     <button class="btn btn-primary" id="prevStep" disabled>
                         <i class="fas fa-backward"></i> Предыдущий
                     </button>
-                    <button class="btn btn-success" id="playSteps">
-                        <i class="fas fa-play"></i> Воспроизвести
-                    </button>
                     <button class="btn btn-primary" id="nextStep">
                         Следующий <i class="fas fa-forward"></i>
+                    </button>
+                    <button class="btn btn-success" id="playSteps">
+                        <i class="fas fa-play"></i> Воспроизвести
                     </button>
                     <button class="btn btn-secondary" id="resetSteps">
                         <i class="fas fa-redo"></i> Сброс
@@ -238,9 +238,6 @@
                 <div class="d-flex justify-content-between">
                     <a href="{{ url_for('castle_detail', castle_id=castle.id) }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> К замку
-                    </a>
-                    <a href="{{ url_for('solve_castle', castle_id=castle.id) }}" class="btn btn-primary">
-                        <i class="fas fa-sync"></i> Показать снова
                     </a>
                 </div>
             </div>

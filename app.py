@@ -1,8 +1,9 @@
 import json
 import os
 import sys
+from datetime import datetime
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, make_response
 
 from cracker import CastleCracker
 from database import Database
@@ -159,8 +160,7 @@ def new_castle():
             }
 
             # Проверка уникальности имени
-            existing_castles, _ = db.get_all_castles(search=castle_data['name'])
-            if existing_castles and (not castle or existing_castles[0]['id'] != castle.get('id')):
+            if db.check_castle_name_exists(castle_data['name']):
                 flash(f'Замок с именем "{castle_data["name"]}" уже существует', 'danger')
                 return redirect(url_for('new_castle'))
 
@@ -249,12 +249,9 @@ def edit_castle(castle_id):
             }
 
             # Проверка уникальности имени (исключая текущий замок)
-            existing_castles, _ = db.get_all_castles(search=castle_data['name'])
-            if existing_castles:
-                for existing in existing_castles:
-                    if existing['id'] != castle_id:
-                        flash(f'Замок с именем "{castle_data["name"]}" уже существует', 'danger')
-                        return redirect(url_for('edit_castle', castle_id=castle_id))
+            if db.check_castle_name_exists(castle_data['name'], exclude_id=castle_id):
+                flash(f'Замок с именем "{castle_data["name"]}" уже существует', 'danger')
+                return redirect(url_for('edit_castle', castle_id=castle_id))
 
             # валидация
             if not (min_cells <= castle_data['cells'] <= max_cells):
@@ -343,6 +340,235 @@ def api_castles():
         'has_solution': castle['has_solution'],
         'solution_length': castle['solution_length']
     } for castle in castles])
+
+
+@app.route('/castle/<int:castle_id>/export')
+def export_castle(castle_id):
+    """Экспорт конфигурации замка в JSON"""
+    castle = db.get_castle(castle_id)
+    if not castle:
+        flash('Замок не найден', 'danger')
+        return redirect(url_for('castles'))
+
+    # Подготавливаем данные для экспорта
+    export_data = {
+        'version': '1.0',
+        'export_date': datetime.now().isoformat(),
+        'castle': {
+            'name': castle['name'],
+            'cells': castle['cells'],
+            'start_positions': castle['start_positions'],
+            'dependencies': castle['dependencies']
+        }
+    }
+
+    # Создаем JSON строку с отступами для читаемости
+    json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
+
+    # Используем только ID для имени файла (без кириллицы)
+    filename = f"castle_{castle_id}.json"
+
+    # Создаем ответ с файлом
+    response = make_response(json_str.encode('utf-8'))
+    response.headers['Content-Type'] = 'application/json; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    return response
+
+
+@app.route('/castles/export-all')
+def export_all_castles():
+    """Экспорт всех замков в один JSON файл"""
+    try:
+        # Получаем список замков (игнорируем общее количество)
+        castles_list, total = db.get_all_castles()
+
+        export_data = {
+            'version': '1.0',
+            'export_date': datetime.now().isoformat(),
+            'total_count': total,
+            'castles': []
+        }
+
+        for castle in castles_list:
+            export_data['castles'].append({
+                'name': castle['name'],
+                'cells': castle['cells'],
+                'start_positions': castle['start_positions'],
+                'dependencies': castle['dependencies']
+            })
+
+        json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"castles_export_{timestamp}.json"
+
+        response = make_response(json_str.encode('utf-8'))
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        flash(f'Экспортировано замков: {total}', 'success')
+        return response
+
+    except Exception as e:
+        flash(f'Ошибка при экспорте: {str(e)}', 'danger')
+        return redirect(url_for('castles'))
+
+
+@app.route('/castles/import', methods=['GET', 'POST'])
+def import_castles():
+    """Импорт конфигураций замков из JSON"""
+    if request.method == 'POST':
+        try:
+            # Проверяем, есть ли файл
+            if 'file' not in request.files:
+                flash('Файл не выбран', 'danger')
+                return redirect(url_for('import_castles'))
+
+            file = request.files['file']
+            if file.filename == '':
+                flash('Файл не выбран', 'danger')
+                return redirect(url_for('import_castles'))
+
+            if not file.filename.endswith('.json'):
+                flash('Поддерживаются только JSON файлы', 'danger')
+                return redirect(url_for('import_castles'))
+
+            # Читаем JSON
+            content = file.read().decode('utf-8')
+            data = json.loads(content)
+
+            settings = db.get_all_settings()
+            min_cells = int(settings.get('min_cells', {}).get('value', 3))
+            max_cells = int(settings.get('max_cells', {}).get('value', 8))
+            min_pos = int(settings.get('min_position', {}).get('value', 1))
+            max_pos = int(settings.get('max_position', {}).get('value', 7))
+
+            imported_count = 0
+            skipped_count = 0
+            errors = []
+
+            # Определяем формат (один замок или несколько)
+            if 'castle' in data:
+                # Формат с одним замком
+                castles_to_import = [data['castle']]
+            elif 'castles' in data:
+                # Формат с несколькими замками
+                castles_to_import = data['castles']
+            else:
+                # Предполагаем, что это прямой экспорт одного замка
+                if 'name' in data and 'cells' in data:
+                    castles_to_import = [data]
+                else:
+                    flash('Неверный формат файла', 'danger')
+                    return redirect(url_for('import_castles'))
+
+            for castle_data in castles_to_import:
+                try:
+                    # Валидация данных
+                    name = castle_data.get('name', '').strip()
+                    if not name:
+                        errors.append(f"Пропущен: нет названия")
+                        skipped_count += 1
+                        continue
+
+                    cells = int(castle_data.get('cells', 0))
+                    if not (min_cells <= cells <= max_cells):
+                        errors.append(f"'{name}': количество ячеек {cells} вне диапазона ({min_cells}-{max_cells})")
+                        skipped_count += 1
+                        continue
+
+                    start_positions = castle_data.get('start_positions', [])
+                    if len(start_positions) != cells:
+                        errors.append(f"'{name}': неверное количество стартовых позиций")
+                        skipped_count += 1
+                        continue
+
+                    # Проверка позиций
+                    valid_positions = True
+                    for pos in start_positions:
+                        if not (min_pos <= pos <= max_pos):
+                            errors.append(f"'{name}': позиция {pos} вне диапазона ({min_pos}-{max_pos})")
+                            valid_positions = False
+                            break
+
+                    if not valid_positions:
+                        skipped_count += 1
+                        continue
+
+                    # Проверка зависимостей
+                    dependencies = castle_data.get('dependencies', {})
+                    for cell, deps in dependencies.items():
+                        cell_num = int(cell)
+                        if cell_num < 1 or cell_num > cells:
+                            errors.append(f"'{name}': ячейка {cell_num} вне диапазона")
+                            valid_positions = False
+                            break
+
+                        for dep_cell, sign in deps.items():
+                            dep_num = int(dep_cell)
+                            if dep_num < 1 or dep_num > cells:
+                                errors.append(f"'{name}': зависимая ячейка {dep_num} вне диапазона")
+                                valid_positions = False
+                                break
+                            if sign not in ['+', '-']:
+                                errors.append(f"'{name}': неверный знак '{sign}' для зависимости")
+                                valid_positions = False
+                                break
+
+                    if not valid_positions:
+                        skipped_count += 1
+                        continue
+
+                    # Проверяем уникальность имени
+                    if db.check_castle_name_exists(name):
+                        errors.append(f"'{name}': замок с таким именем уже существует")
+                        skipped_count += 1
+                        continue
+
+                    # Создаем замок
+                    new_castle = {
+                        'name': name,
+                        'cells': cells,
+                        'start_positions': start_positions,
+                        'dependencies': dependencies,
+                        'settings': settings
+                    }
+
+                    # Находим решение
+                    cracker = CastleCracker(new_castle)
+                    solution = cracker.solve()
+                    new_castle['has_solution'] = solution is not None
+                    new_castle['solution_length'] = len(solution) if solution else 0
+
+                    db.create_castle(new_castle)
+                    imported_count += 1
+
+                except Exception as e:
+                    errors.append(f"Ошибка при импорте: {str(e)}")
+                    skipped_count += 1
+
+            # Формируем сообщение о результате
+            if imported_count > 0:
+                flash(f'✅ Импортировано замков: {imported_count}', 'success')
+            if skipped_count > 0:
+                flash(f'⚠️ Пропущено: {skipped_count}', 'warning')
+                if errors and len(errors) <= 5:
+                    for error in errors:
+                        flash(f'• {error}', 'warning')
+                elif errors:
+                    flash(f'• и ещё {len(errors) - 5} ошибок...', 'warning')
+
+            return redirect(url_for('castles'))
+
+        except json.JSONDecodeError as e:
+            flash(f'Ошибка парсинга JSON: {str(e)}', 'danger')
+            return redirect(url_for('import_castles'))
+        except Exception as e:
+            flash(f'Ошибка при импорте: {str(e)}', 'danger')
+            return redirect(url_for('import_castles'))
+
+    return render_template('import.html')
 
 
 if __name__ == '__main__':
