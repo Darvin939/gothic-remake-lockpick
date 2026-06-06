@@ -88,3 +88,4 @@ Thumbs.db
 # Debug
 debug.log
 error.log
+*.spec
