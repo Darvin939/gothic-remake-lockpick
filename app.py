@@ -1,8 +1,11 @@
 import json
 import os
 import sys
+import threading
+import time
 from datetime import datetime
 
+import pyautogui
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, make_response
 
 from cracker import CastleCracker
@@ -26,6 +29,10 @@ app = Flask(__name__, template_folder=template_dir)
 
 app.secret_key = 'castle_cracker_secret_key_2024'
 db = Database('lockpicker.db')
+
+# Словарь для хранения активных процессов автоматизации
+active_automations = {}
+automation_statuses = {}
 
 
 class Config:
@@ -569,6 +576,146 @@ def import_castles():
             return redirect(url_for('import_castles'))
 
     return render_template('import.html')
+
+
+@app.route('/castle/<int:castle_id>/automate', methods=['POST'])
+def automate_castle(castle_id):
+    """Запуск автоматизации (асинхронно)"""
+    castle = db.get_castle(castle_id)
+    if not castle:
+        return jsonify({'error': 'Замок не найден'}), 404
+
+    # Проверяем, не запущена ли уже автоматизация
+    if castle_id in active_automations and active_automations[castle_id].is_alive():
+        return jsonify({'error': 'Автоматизация уже запущена'}), 400
+
+    # Получаем настройки из запроса
+    data = request.get_json()
+    delay_before = data.get('delay_before', 3)
+    delay_between = data.get('delay_between', 0.5)
+
+    # Инициализируем статус
+    automation_statuses[castle_id] = {
+        'status': 'starting',
+        'current_step': 0,
+        'total_steps': 0,
+        'message': 'Подготовка к запуску...'
+    }
+
+    # Запускаем автоматизацию в отдельном потоке
+    def run_automation():
+        try:
+            # Получаем решение
+            automation_statuses[castle_id]['status'] = 'loading'
+            automation_statuses[castle_id]['message'] = 'Поиск решения...'
+
+            cracker = CastleCracker(castle)
+            solution = cracker.solve()
+
+            if not solution:
+                automation_statuses[castle_id]['status'] = 'error'
+                automation_statuses[castle_id]['message'] = 'Решение не найдено'
+                return
+
+            total_steps = len(solution)
+            automation_statuses[castle_id]['total_steps'] = total_steps
+            automation_statuses[castle_id]['status'] = 'waiting'
+            automation_statuses[castle_id]['message'] = f'Найдено решение ({total_steps} шагов). Ожидание {delay_before} сек...'
+
+            # Ждем перед началом
+            time.sleep(delay_before)
+
+            # Проверка на остановку
+            if not is_automation_active(castle_id):
+                automation_statuses[castle_id]['status'] = 'stopped'
+                automation_statuses[castle_id]['message'] = 'Автоматизация остановлена пользователем'
+                return
+
+            automation_statuses[castle_id]['status'] = 'running'
+            automation_statuses[castle_id]['message'] = 'Выполнение автоматизации...'
+
+            # Проходим по каждому шагу решения
+            current_cell = 1
+            for step_num, (cell, direction) in enumerate(solution, 1):
+                # Проверка на остановку
+                if not is_automation_active(castle_id):
+                    automation_statuses[castle_id]['status'] = 'stopped'
+                    automation_statuses[castle_id]['message'] = f'Автоматизация остановлена на шаге {step_num-1}/{total_steps}'
+                    return
+
+                automation_statuses[castle_id]['current_step'] = step_num
+                automation_statuses[castle_id]['message'] = f'Шаг {step_num}/{total_steps}: ячейка {cell}'
+
+                # Переключаемся на нужную ячейку (W/S)
+                while current_cell != cell:
+                    if current_cell < cell:
+                        pyautogui.press('w')
+                        current_cell += 1
+                    else:
+                        pyautogui.press('s')
+                        current_cell -= 1
+                    time.sleep(0.1)
+
+                # Двигаем позицию в нужную сторону (A/D)
+                direction_key = 'a' if direction == 1 else 'd'
+                pyautogui.press(direction_key)
+                time.sleep(delay_between)
+
+            automation_statuses[castle_id]['status'] = 'completed'
+            automation_statuses[castle_id]['message'] = f'✅ Автоматизация завершена! Выполнено {total_steps} шагов.'
+
+        except Exception as e:
+            automation_statuses[castle_id]['status'] = 'error'
+            automation_statuses[castle_id]['message'] = f'Ошибка: {str(e)}'
+        finally:
+            # Не удаляем статус сразу, чтобы UI мог прочитать
+            pass
+
+    # Запускаем поток
+    thread = threading.Thread(target=run_automation, daemon=True)
+    thread.start()
+    active_automations[castle_id] = thread
+
+    return jsonify({
+        'success': True,
+        'message': 'Автоматизация запущена',
+        'total_steps': automation_statuses[castle_id].get('total_steps', 0)
+    })
+
+@app.route('/castle/<int:castle_id>/automate/status', methods=['GET'])
+def automation_status(castle_id):
+    """Получение статуса автоматизации"""
+    if castle_id in automation_statuses:
+        status = automation_statuses[castle_id].copy()
+        status['active'] = castle_id in active_automations and active_automations[castle_id].is_alive()
+        return jsonify(status)
+    return jsonify({'active': False, 'status': 'idle', 'message': 'Нет активной автоматизации'})
+
+@app.route('/castle/<int:castle_id>/automate/stop', methods=['POST'])
+def stop_automation(castle_id):
+    """Остановка автоматизации"""
+    if castle_id in automation_statuses:
+        automation_statuses[castle_id]['status'] = 'stopping'
+        automation_statuses[castle_id]['message'] = 'Остановка автоматизации...'
+
+        # Помечаем для остановки
+        if castle_id in active_automations:
+            # Ждем завершения потока (максимум 2 секунды)
+            active_automations[castle_id].join(timeout=2)
+            del active_automations[castle_id]
+
+        automation_statuses[castle_id]['status'] = 'stopped'
+        automation_statuses[castle_id]['message'] = 'Автоматизация остановлена'
+        return jsonify({'success': True, 'message': 'Автоматизация остановлена'})
+
+    return jsonify({'success': False, 'message': 'Нет активной автоматизации'})
+
+def is_automation_active(castle_id):
+    """Проверка, активна ли автоматизация"""
+    if castle_id not in automation_statuses:
+        return False
+    status = automation_statuses[castle_id].get('status', '')
+    return status in ['starting', 'loading', 'waiting', 'running'] and castle_id in active_automations
 
 
 if __name__ == '__main__':
