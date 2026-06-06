@@ -1,0 +1,702 @@
+{% extends "base.html" %}
+
+{% set target_pos = castle.settings.get('target_position', {}).get('value', '4')|int %}
+{% set min_pos = castle.settings.get('min_position', {}).get('value', '1')|int %}
+{% set max_pos = castle.settings.get('max_position', {}).get('value', '7')|int %}
+
+{% block title %}Решение: {{ castle.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4><i class="fas fa-key"></i> Решение для замка "{{ castle.name }}"</h4>
+                <p class="mb-0">Найдено решение за {{ solution|length }} ходов!</p>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Цель:</strong> Переместить все пины в позицию
+                    <span class="position-circle position-{{ target_pos }}" style="width: 30px; height: 30px; line-height: 30px; display: inline-flex;">{{ target_pos }}</span>
+                </div>
+
+                <div class="solution-controls mb-4 text-center">
+                    <button class="btn btn-primary" id="prevStep" disabled>
+                        <i class="fas fa-backward"></i> Предыдущий
+                    </button>
+                    <button class="btn btn-success" id="playSteps">
+                        <i class="fas fa-play"></i> Воспроизвести
+                    </button>
+                    <button class="btn btn-primary" id="nextStep">
+                        Следующий <i class="fas fa-forward"></i>
+                    </button>
+                    <button class="btn btn-secondary" id="resetSteps">
+                        <i class="fas fa-redo"></i> Сброс
+                    </button>
+                    <span class="ms-3" id="stepCounter">Шаг 0 из {{ steps|length - 1 }}</span>
+                </div>
+
+                <div id="stepsContainer">
+                    {% for step in steps %}
+                    <div class="solution-step" data-step="{{ step.step }}" style="display: {% if step.step == 0 %}block{% else %}none{% endif %};">
+                        <div class="d-flex align-items-center mb-3">
+                            {% if step.step == 0 %}
+                            <h5 class="mb-0">
+                                    <span class="badge bg-secondary p-2">
+                                        <i class="fas fa-play"></i> Начальное состояние
+                                    </span>
+                            </h5>
+                            {% else %}
+                            {% set prev_state = steps[step.step - 1].state %}
+                            {% set active_cell = step.move[0] %}
+                            {% set active_direction = 'влево' if step.move[1] == -1 else 'вправо' %}
+                            {% set active_from = prev_state[active_cell - 1] %}
+                            {% set active_to = step.state[active_cell - 1] %}
+
+                            {% set dependent_changes = [] %}
+                            {% for i in range(castle.cells) %}
+                            {% if i != active_cell - 1 and step.state[i] != prev_state[i] %}
+                            {% set _ = dependent_changes.append({
+                            'cell': i + 1,
+                            'from': prev_state[i],
+                            'to': step.state[i],
+                            'direction': 'влево' if step.state[i] < prev_state[i] else 'вправо'
+                            }) %}
+                            {% endif %}
+                            {% endfor %}
+
+                            <div class="w-100">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card bg-primary text-white mb-2">
+                                            <div class="card-body p-2 text-center">
+                                                <i class="fas fa-fist-raised"></i>
+                                                <strong>АКТИВНОЕ ДЕЙСТВИЕ</strong>
+                                                <hr class="my-1">
+                                                <span class="badge bg-light text-dark">
+                                                        <i class="fas fa-arrow-{% if step.move[1] == -1 %}left{% else %}right{% endif %}"></i>
+                                                        Ячейка {{ active_cell }}
+                                                        <strong class="{% if step.move[1] == -1 %}text-danger{% else %}text-success{% endif %}">
+                                                            {{ active_direction|upper }}
+                                                        </strong>
+                                                    </span>
+                                                <span class="badge bg-light text-dark ms-2">
+                                                        {{ active_from }} → {{ active_to }}
+                                                    </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        {% if dependent_changes %}
+                                        <div class="card bg-warning text-dark mb-2">
+                                            <div class="card-body p-2 text-center">
+                                                <i class="fas fa-link"></i>
+                                                <strong>ЗАВИСИМЫЕ ЯЧЕЙКИ</strong>
+                                                <hr class="my-1">
+                                                {% for change in dependent_changes %}
+                                                <span class="badge bg-dark text-white me-1">
+                                                            <i class="fas fa-arrow-{% if change.direction == 'влево' %}left{% else %}right{% endif %}"></i>
+                                                            Ячейка {{ change.cell }}: {{ change.from }}→{{ change.to }}
+                                                        </span>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        <div class="card bg-secondary text-white mb-2">
+                                            <div class="card-body p-2 text-center">
+                                                <i class="fas fa-check-circle"></i>
+                                                <strong>Нет зависимых ячеек</strong>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            {% for i, pos in enumerate(step.state) %}
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                {% set is_active = step.step > 0 and (i + 1) == step.move[0] %}
+                                {% set is_dependent = step.step > 0 and step.state[i] != steps[step.step - 1].state[i] and (i + 1) != step.move[0] %}
+                                {% set has_changed = step.step > 0 and step.state[i] != steps[step.step - 1].state[i] %}
+
+                                <div class="card h-100
+                                    {% if is_active %}active-cell{% endif %}
+                                    {% if is_dependent %}dependent-cell{% endif %}
+                                    {% if has_changed %}changed-cell{% endif %}">
+                                    <div class="card-body">
+                                        <h6 class="card-title text-center mb-3">
+                                            <i class="fas fa-cube"></i> Ячейка {{ i+1 }}
+                                            {% if is_active %}
+                                            <span class="badge bg-danger ms-2">
+                                                    <i class="fas fa-fist-raised"></i> АКТИВНА
+                                                </span>
+                                            {% elif is_dependent %}
+                                            <span class="badge bg-warning text-dark ms-2">
+                                                    <i class="fas fa-link"></i> ЗАВИСИМАЯ
+                                                </span>
+                                            {% elif has_changed %}
+                                            <span class="badge bg-info ms-2">
+                                                    <i class="fas fa-exchange-alt"></i> ИЗМЕНЕНА
+                                                </span>
+                                            {% endif %}
+                                        </h6>
+
+                                        <div class="d-flex justify-content-center flex-wrap position-container" data-cell="{{ i+1 }}">
+                                            {% for p in range(min_pos, max_pos + 1) %}
+                                            {% if p == pos %}
+                                            <span class="position-circle position-{{ p }} mx-1 my-1
+                                                        {% if has_changed and p == pos %}position-pulse{% endif %}
+                                                        {% if has_changed and p == steps[step.step - 1].state[i] %}position-fadeout{% endif %}
+                                                        {% if is_active %}active-move{% endif %}
+                                                        {% if is_dependent %}dependent-move{% endif %}"
+                                                  data-position="{{ p }}" data-old="{{ steps[step.step - 1].state[i] if step.step > 0 else pos }}">
+                                                        {{ p }}
+                                                    </span>
+                                            {% elif has_changed and p == steps[step.step - 1].state[i] %}
+                                            <span class="position-circle position-inactive mx-1 my-1 position-fadeout">
+                                                        {{ p }}
+                                                        <span class="old-position-marker">●</span>
+                                                    </span>
+                                            {% else %}
+                                            <span class="position-circle position-inactive mx-1 my-1">
+                                                        {{ p }}
+                                                    </span>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="text-center mt-3">
+                                            {% if has_changed %}
+                                            <div class="change-info">
+                                                    <span class="badge bg-secondary">
+                                                        Было: {{ steps[step.step - 1].state[i] }}
+                                                    </span>
+                                                <i class="fas fa-arrow-right mx-1 text-muted"></i>
+                                                <span class="badge
+                                                        {% if is_active %}bg-danger{% elif is_dependent %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                                        Стало: {{ pos }}
+                                                    </span>
+                                            </div>
+                                            {% else %}
+                                            <span class="badge bg-secondary">
+                                                    Позиция: {{ pos }}
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        {% if step.step > 0 %}
+                        <div class="mt-3 p-2 bg-light rounded">
+                            <div class="row text-center">
+                                <div class="col-md-4">
+                                    <div class="small text-muted">
+                                        <i class="fas fa-arrow-{% if step.move[1] == -1 %}left{% else %}right{% endif %} text-{% if step.move[1] == -1 %}danger{% else %}success{% endif %}"></i>
+                                        <strong>Активная ячейка:</strong> {{ step.move[0] }}
+                                        ({{ active_from }} → {{ active_to }})
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="small text-muted">
+                                        <i class="fas fa-chart-line"></i>
+                                        <strong>Всего изменений:</strong>
+                                        {% set total_changes = 1 + dependent_changes|length %}
+                                        {{ total_changes }} ячеек
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="small text-muted">
+                                        <i class="fas fa-link"></i>
+                                        <strong>Зависимых:</strong> {{ dependent_changes|length }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Поздравление только на последнем шаге -->
+                        {% if step.step == steps|length - 1 %}
+                        <div class="alert alert-success mt-4 text-center celebration">
+                            <i class="fas fa-trophy fa-3x mb-2"></i>
+                            <h4 class="mb-2">🎉 ЗАМОК ОТКРЫТ! 🎉</h4>
+                            <p class="mb-0 fs-5">Все пины успешно перемещены в позицию {{ target_pos }}!</p>
+                            <div class="confetti mt-2">✨ 🎊 🎈 🎉 ✨</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('castle_detail', castle_id=castle.id) }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> К замку
+                    </a>
+                    <a href="{{ url_for('solve_castle', castle_id=castle.id) }}" class="btn btn-primary">
+                        <i class="fas fa-sync"></i> Показать снова
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .position-circle {
+        display: inline-flex;
+        width: 45px;
+        height: 45px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-weight: bold;
+        font-size: 1.1em;
+        transition: all 0.3s ease;
+        cursor: default;
+        position: relative;
+    }
+
+    .position-inactive {
+        background-color: #e9ecef;
+        color: #adb5bd;
+        border: 2px solid #dee2e6;
+    }
+
+    .position-1, .position-7 {
+        background-color: #dc3545;
+        color: white;
+    }
+    .position-2, .position-6 {
+        background-color: #fd7e14;
+        color: white;
+    }
+    .position-3, .position-5 {
+        background-color: #ffc107;
+        color: black;
+    }
+    .position-4 {
+        background-color: #28a745;
+        color: white;
+    }
+
+    /* Стили для активной ячейки */
+    .active-cell {
+        background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+        border: 3px solid #dc3545;
+        box-shadow: 0 0 20px rgba(220, 53, 69, 0.3);
+        animation: activePulse 1s ease infinite;
+    }
+
+    @keyframes activePulse {
+        0%, 100% {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4);
+        }
+        50% {
+            border-color: #ff6b6b;
+            box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+        }
+    }
+
+    /* Стили для зависимой ячейки */
+    .dependent-cell {
+        background: linear-gradient(135deg, #fff9e6 0%, #fff0cc 100%);
+        border: 3px solid #ffc107;
+        box-shadow: 0 0 15px rgba(255, 193, 7, 0.3);
+    }
+
+    /* Анимация для изменяющихся ячеек */
+    .changed-cell {
+        animation: cellHighlight 0.6s ease;
+    }
+
+    @keyframes cellHighlight {
+        0% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.02);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    /* Пульсация новой позиции */
+    .position-pulse {
+        animation: pulse 0.8s ease 2;
+        box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.5);
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+        }
+        70% {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+        }
+    }
+
+    /* Затухание старой позиции */
+    .position-fadeout {
+        animation: fadeout 0.5s ease forwards;
+        position: relative;
+    }
+
+    @keyframes fadeout {
+        0% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        100% {
+            opacity: 0.3;
+            transform: scale(0.8);
+        }
+    }
+
+    .old-position-marker {
+        position: absolute;
+        font-size: 8px;
+        bottom: 2px;
+        right: 2px;
+        color: #dc3545;
+    }
+
+    /* Анимация для активного перемещения */
+    .active-move {
+        animation: activeMove 0.4s ease;
+    }
+
+    @keyframes activeMove {
+        0% {
+            transform: translateX(0);
+        }
+        30% {
+            transform: translateX(calc(var(--move-direction) * 10px));
+        }
+        100% {
+            transform: translateX(0);
+        }
+    }
+
+    /* Анимация для зависимого перемещения */
+    .dependent-move {
+        animation: dependentMove 0.4s ease 0.1s;
+    }
+
+    @keyframes dependentMove {
+        0% {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        30% {
+            transform: translateX(calc(var(--move-direction) * 5px));
+            opacity: 0.8;
+        }
+        100% {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .solution-step {
+        border-left: 4px solid #28a745;
+        padding-left: 20px;
+        margin-bottom: 30px;
+        animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .card {
+        transition: all 0.3s ease;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .solution-controls button {
+        margin: 0 5px;
+    }
+
+    #stepCounter {
+        font-size: 1.1em;
+        font-weight: bold;
+        color: #28a745;
+    }
+
+    .change-info {
+        display: inline-block;
+        background: #f8f9fa;
+        padding: 5px 10px;
+        border-radius: 20px;
+    }
+
+    /* Стили для поздравления */
+    .celebration {
+        animation: celebrate 0.6s ease;
+    }
+
+    @keyframes celebrate {
+        0% {
+            transform: scale(0.9);
+            opacity: 0;
+        }
+        50% {
+            transform: scale(1.05);
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .confetti {
+        font-size: 1.5rem;
+        animation: float 2s ease infinite;
+    }
+
+    @keyframes float {
+        0%, 100% {
+            transform: translateY(0);
+        }
+        50% {
+            transform: translateY(-5px);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .position-circle {
+            width: 35px;
+            height: 35px;
+            font-size: 0.9em;
+        }
+
+        .solution-controls button {
+            margin: 5px;
+            font-size: 0.9em;
+        }
+
+        .badge {
+            font-size: 0.8em;
+        }
+
+        .celebration h4 {
+            font-size: 1.2rem;
+        }
+    }
+</style>
+
+<script>
+    let currentStep = 0;
+    let totalSteps = {{ steps|length - 1 }};
+    let autoPlayInterval = null;
+    let isPlaying = false;
+
+    const steps = document.querySelectorAll('.solution-step');
+    const prevBtn = document.getElementById('prevStep');
+    const nextBtn = document.getElementById('nextStep');
+    const playBtn = document.getElementById('playSteps');
+    const resetBtn = document.getElementById('resetSteps');
+    const stepCounter = document.getElementById('stepCounter');
+
+    // Устанавливаем направление для анимации
+    function setMoveDirection() {
+        for (let step of steps) {
+            if (step.dataset.step && step.dataset.step > 0) {
+                const activeMove = step.querySelector('.active-move');
+                const dependentMoves = step.querySelectorAll('.dependent-move');
+
+                // Для активной ячейки определяем направление
+                if (activeMove) {
+                    const moveText = step.querySelector('.badge.bg-light.text-dark strong');
+                    let direction = -1;
+                    if (moveText && moveText.textContent.includes('ВПРАВО')) {
+                        direction = 1;
+                    }
+                    activeMove.style.setProperty('--move-direction', direction);
+                }
+
+                // Для зависимых ячеек
+                dependentMoves.forEach(move => {
+                    const parentCard = move.closest('.card');
+                    const isDependent = parentCard && parentCard.classList.contains('dependent-cell');
+                    if (isDependent) {
+                        // Определяем направление по разнице позиций
+                        const oldPos = parseInt(move.getAttribute('data-old') || 0);
+                        const newPos = parseInt(move.textContent);
+                        let direction = newPos > oldPos ? 1 : -1;
+                        move.style.setProperty('--move-direction', direction);
+                    }
+                });
+            }
+        }
+    }
+
+    function updateDisplay() {
+        steps.forEach((step, index) => {
+            if (index === currentStep) {
+                step.style.display = 'block';
+                setTimeout(() => {
+                    setMoveDirection();
+                    const changedCells = step.querySelectorAll('.changed-cell');
+                    changedCells.forEach(cell => {
+                        cell.style.animation = 'none';
+                        cell.offsetHeight;
+                        cell.style.animation = 'cellHighlight 0.6s ease';
+                    });
+                }, 100);
+            } else {
+                step.style.display = 'none';
+            }
+        });
+
+        prevBtn.disabled = currentStep === 0;
+        nextBtn.disabled = currentStep === totalSteps;
+        stepCounter.textContent = `Шаг ${currentStep} из ${totalSteps}`;
+
+        if (isPlaying) {
+            playBtn.innerHTML = '<i class="fas fa-pause"></i> Пауза';
+            playBtn.classList.remove('btn-success');
+            playBtn.classList.add('btn-warning');
+        } else {
+            playBtn.innerHTML = '<i class="fas fa-play"></i> Воспроизвести';
+            playBtn.classList.remove('btn-warning');
+            playBtn.classList.add('btn-success');
+        }
+    }
+
+    function nextStep() {
+        if (currentStep < totalSteps) {
+            currentStep++;
+            updateDisplay();
+        } else if (currentStep === totalSteps && isPlaying) {
+            stopAutoPlay();
+        }
+    }
+
+    function prevStep() {
+        if (currentStep > 0) {
+            currentStep--;
+            updateDisplay();
+        }
+    }
+
+    function resetSteps() {
+        stopAutoPlay();
+        currentStep = 0;
+        updateDisplay();
+    }
+
+    function startAutoPlay() {
+        if (autoPlayInterval) clearInterval(autoPlayInterval);
+        isPlaying = true;
+        updateDisplay();
+
+        autoPlayInterval = setInterval(() => {
+            if (currentStep < totalSteps) {
+                nextStep();
+            } else {
+                stopAutoPlay();
+            }
+        }, 3000);
+    }
+
+    function stopAutoPlay() {
+        if (autoPlayInterval) {
+            clearInterval(autoPlayInterval);
+            autoPlayInterval = null;
+        }
+        isPlaying = false;
+        updateDisplay();
+    }
+
+    function toggleAutoPlay() {
+        if (isPlaying) {
+            stopAutoPlay();
+        } else {
+            startAutoPlay();
+        }
+    }
+
+    prevBtn.addEventListener('click', prevStep);
+    nextBtn.addEventListener('click', nextStep);
+    playBtn.addEventListener('click', toggleAutoPlay);
+    resetBtn.addEventListener('click', resetSteps);
+
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        switch(e.key) {
+            case 'ArrowLeft':
+                prevStep();
+                break;
+            case 'ArrowRight':
+                nextStep();
+                break;
+            case ' ':
+            case 'Space':
+                e.preventDefault();
+                toggleAutoPlay();
+                break;
+            case 'Home':
+                resetSteps();
+                break;
+            case 'End':
+                if (!isPlaying) {
+                    currentStep = totalSteps;
+                    updateDisplay();
+                }
+                break;
+        }
+    });
+
+    updateDisplay();
+
+    setTimeout(() => {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-info alert-dismissible fade show position-fixed bottom-0 end-0 m-3';
+        alert.style.zIndex = '9999';
+        alert.style.maxWidth = '350px';
+        alert.innerHTML = `
+            <i class="fas fa-info-circle"></i>
+            <strong>Легенда:</strong><br>
+            🔴 <span class="text-danger">КРАСНЫЙ</span> - Активная ячейка (вы выбрали её для хода)<br>
+            🟡 <span class="text-warning">ЖЁЛТЫЙ</span> - Зависимая ячейка (изменилась из-за связи)<br>
+            🟢 <span class="text-success">ЗЕЛЁНЫЙ</span> - Целевая позиция 4<br>
+            <hr class="my-1">
+            <i class="fas fa-keyboard"></i> Управление: ← → Пробел Home End
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(alert);
+
+        setTimeout(() => {
+            alert.remove();
+        }, 10000);
+    }, 1000);
+</script>
+{% endblock %}

@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Список замков{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2><i class="fas fa-castle"></i> Все замки</h2>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('new_castle') }}" class="btn btn-success">
+            <i class="fas fa-plus"></i> Создать замок
+        </a>
+    </div>
+</div>
+
+<!-- Панель поиска -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('castles') }}" class="row g-3">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" name="search"
+                           placeholder="Поиск по названию замка..."
+                           value="{{ search }}">
+                    <input type="hidden" name="per_page" value="{{ per_page }}">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-fill">
+                        <i class="fas fa-search"></i> Искать
+                    </button>
+                    {% if search %}
+                    <a href="{{ url_for('castles') }}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Сброс
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Результаты поиска -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <span class="text-muted">
+            Найдено: <strong>{{ total }}</strong> замков
+            {% if search %} по запросу "{{ search }}"{% endif %}
+        </span>
+    </div>
+    <div>
+        <label class="text-muted small me-2">Показывать:</label>
+        <select class="form-select form-select-sm d-inline-block w-auto" onchange="changePerPage(this.value)">
+            <option value="12" {% if per_page == 12 %}selected{% endif %}>12</option>
+            <option value="24" {% if per_page == 24 %}selected{% endif %}>24</option>
+            <option value="48" {% if per_page == 48 %}selected{% endif %}>48</option>
+        </select>
+    </div>
+</div>
+
+<!-- Список замков -->
+<div class="row">
+    {% for castle in castles %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card castle-card h-100">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-fort"></i> {{ castle.name }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2">
+                    <strong><i class="fas fa-table-cells"></i> Ячеек:</strong> {{ castle.cells }}
+                    <span class="text-muted">({{ castle.settings.get('min_cells', {}).get('value', '3') }}-{{ castle.settings.get('max_cells', {}).get('value', '8') }})</span>
+                </p>
+                <p class="mb-2">
+                    <strong><i class="fas fa-chart-line"></i> Диапазон позиций:</strong>
+                    {{ castle.settings.get('min_position', {}).get('value', '1') }}-{{ castle.settings.get('max_position', {}).get('value', '7') }}
+                </p>
+                <p class="mb-2">
+                    <strong><i class="fas fa-bullseye"></i> Цель:</strong>
+                    <span class="position-indicator position-{{ castle.settings.get('target_position', {}).get('value', '4') }}">
+                        {{ castle.settings.get('target_position', {}).get('value', '4') }}
+                    </span>
+                </p>
+                <p class="mb-2">
+                    <strong><i class="fas fa-play"></i> Стартовые позиции:</strong>
+                </p>
+                <div class="mb-2">
+                    {% for pos in castle.start_positions %}
+                    <span class="position-indicator position-{{ pos }}">{{ pos }}</span>
+                    {% endfor %}
+                </div>
+                <p class="mb-0">
+                    <strong>Статус:</strong>
+                    {% if castle.has_solution %}
+                    <span class="badge bg-success">
+                            <i class="fas fa-check"></i> Решаемый
+                        </span>
+                    <span class="badge bg-info ms-1">
+                            <i class="fas fa-shoe-prints"></i> {{ castle.solution_length }} ходов
+                        </span>
+                    {% else %}
+                    <span class="badge bg-danger">
+                            <i class="fas fa-times"></i> Нерешаемый
+                        </span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('castle_detail', castle_id=castle.id) }}"
+                       class="btn btn-info btn-sm flex-fill">
+                        <i class="fas fa-eye"></i> Просмотр
+                    </a>
+                    <a href="{{ url_for('edit_castle', castle_id=castle.id) }}"
+                       class="btn btn-warning btn-sm flex-fill">
+                        <i class="fas fa-edit"></i> Ред.
+                    </a>
+                    <form action="{{ url_for('delete_castle', castle_id=castle.id) }}"
+                          method="POST"
+                          style="display: inline; flex: 1;"
+                          onsubmit="return confirm('Удалить замок «{{ castle.name }}»?');">
+                        <button type="submit" class="btn btn-danger btn-sm w-100">
+                            <i class="fas fa-trash"></i> Уд.
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle fa-2x mb-2"></i>
+            <h5>{% if search %}Ничего не найдено{% else %}Нет созданных замков{% endif %}</h5>
+            <p class="mb-0">
+                {% if search %}
+                Попробуйте изменить поисковый запрос
+                {% else %}
+                Создайте первый замок, чтобы начать!
+                {% endif %}
+            </p>
+            {% if not search %}
+            <a href="{{ url_for('new_castle') }}" class="btn btn-primary mt-3">
+                <i class="fas fa-plus"></i> Создать замок
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Пагинация -->
+{% if total_pages > 1 %}
+<nav aria-label="Пагинация" class="mt-4">
+    <ul class="pagination justify-content-center">
+        <!-- Первая страница -->
+        <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('castles', page=1, search=search, per_page=per_page) }}">
+                <i class="fas fa-angle-double-left"></i>
+            </a>
+        </li>
+
+        <!-- Предыдущая -->
+        <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('castles', page=current_page-1, search=search, per_page=per_page) }}">
+                <i class="fas fa-angle-left"></i>
+            </a>
+        </li>
+
+        <!-- Номера страниц -->
+        {% for p in page_range %}
+        <li class="page-item {% if p == current_page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('castles', page=p, search=search, per_page=per_page) }}">
+                {{ p }}
+            </a>
+        </li>
+        {% endfor %}
+
+        <!-- Следующая -->
+        <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('castles', page=current_page+1, search=search, per_page=per_page) }}">
+                <i class="fas fa-angle-right"></i>
+            </a>
+        </li>
+
+        <!-- Последняя страница -->
+        <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('castles', page=total_pages, search=search, per_page=per_page) }}">
+                <i class="fas fa-angle-double-right"></i>
+            </a>
+        </li>
+    </ul>
+    <div class="text-center text-muted small">
+        Страница {{ current_page }} из {{ total_pages }} (всего {{ total }} замков)
+    </div>
+</nav>
+{% endif %}
+
+<style>
+    .castle-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .castle-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    }
+
+    .position-indicator {
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+        text-align: center;
+        border-radius: 50%;
+        margin: 2px;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .position-1, .position-7 { background-color: #dc3545; color: white; }
+    .position-2, .position-6 { background-color: #fd7e14; color: white; }
+    .position-3, .position-5 { background-color: #ffc107; color: black; }
+    .position-4 { background-color: #28a745; color: white; }
+
+    /* Пагинация */
+    .pagination {
+        margin-bottom: 0;
+    }
+
+    .page-link {
+        padding: 0.5rem 0.75rem;
+        color: #0d6efd;
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+    }
+
+    .page-item.active .page-link {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white;
+    }
+
+    .page-item.disabled .page-link {
+        color: #6c757d;
+        pointer-events: none;
+        background-color: #fff;
+        border-color: #dee2e6;
+    }
+
+    .page-link:hover {
+        background-color: #e9ecef;
+        border-color: #dee2e6;
+        color: #0a58ca;
+    }
+
+    /* Кнопки */
+    .gap-2 {
+        gap: 0.5rem;
+    }
+
+    /* Адаптация для мобильных */
+    @media (max-width: 768px) {
+        .position-indicator {
+            width: 28px;
+            height: 28px;
+            line-height: 28px;
+            font-size: 0.8rem;
+        }
+
+        .btn-sm {
+            font-size: 0.75rem;
+            padding: 0.35rem 0.5rem;
+        }
+
+        .card-footer .d-flex {
+            flex-wrap: wrap;
+        }
+
+        .card-footer .btn-sm {
+            min-width: 80px;
+        }
+
+        .pagination .page-link {
+            padding: 0.375rem 0.5rem;
+            font-size: 0.875rem;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .position-indicator {
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            font-size: 0.7rem;
+        }
+
+        .card-footer .d-flex {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .card-footer .btn-sm {
+            width: 100%;
+        }
+
+        .card-footer form {
+            width: 100%;
+        }
+    }
+</style>
+
+<script>
+    function changePerPage(value) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('per_page', value);
+        url.searchParams.set('page', 1); // сбрасываем на первую страницу
+        window.location.href = url.toString();
+    }
+</script>
+{% endblock %}

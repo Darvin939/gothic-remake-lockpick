@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-edit"></i> {{ title }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="castleForm">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Название замка *</label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               value="{{ castle.name if castle else '' }}"
+                               pattern=".*\S.*"
+                               maxlength="100"
+                               title="Название не может состоять только из пробелов"
+                               onblur="this.value = this.value.trim();">
+                        <small class="text-muted">Название не может быть пустым или состоять только из пробелов</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="cells" class="form-label">
+                            Количество ячеек ({{ min_cells }}-{{ max_cells }}) *
+                        </label>
+                        <input type="number" class="form-control" id="cells" name="cells"
+                               min="{{ min_cells }}" max="{{ max_cells }}" required
+                               value="{{ castle.cells if castle else min_cells }}"
+                               onchange="updateCells()">
+                        <small class="text-muted">Допустимо от {{ min_cells }} до {{ max_cells }} ячеек</small>
+                    </div>
+
+                    <!-- Стартовые позиции пинов -->
+                    <div class="mb-4">
+                        <label class="form-label h5">
+                            🎯 Стартовые позиции пинов (от {{ min_pos }} до {{ max_pos }})
+                        </label>
+                        <div id="startPositionsContainer" class="row g-2"></div>
+                    </div>
+
+                    <!-- Зависимости -->
+                    <div class="mb-4">
+                        <label class="form-label h5">🔗 Зависимости ячеек</label>
+                        <p class="text-muted small">
+                            <i class="fas fa-info-circle"></i>
+                            "+" - зависимая ячейка двигается в ту же сторону,
+                            "-" - в противоположную
+                        </p>
+                        <div id="dependenciesContainer"></div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Целевая позиция:</strong> {{ target_pos }} (задано в глобальных настройках)
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('castles') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Назад
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentCells = {{ castle.cells if castle else min_cells }};
+    let dependenciesData = {};
+    let startPositions = [];
+
+    // Границы из настроек
+    const MIN_POS = {{ min_pos }};
+    const MAX_POS = {{ max_pos }};
+    const TARGET_POS = {{ target_pos }};
+
+    // Инициализация при загрузке
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if castle %}
+        // Загружаем данные существующего замка
+        startPositions = {{ castle.start_positions | tojson }};
+        dependenciesData = {{ castle.dependencies | tojson }};
+        {% else %}
+        // Данные по умолчанию для нового замка
+        startPositions = [];
+        for (let i = 0; i < currentCells; i++) {
+            startPositions.push(Math.floor((MIN_POS + MAX_POS) / 2) || 4);
+        }
+        dependenciesData = {};
+        {% endif %}
+
+        updateCells();
+    });
+
+    function updateCells() {
+        currentCells = parseInt(document.getElementById('cells').value);
+        updateStartPositions();
+        updateDependencies();
+    }
+
+    function updateStartPositions() {
+        const container = document.getElementById('startPositionsContainer');
+        container.innerHTML = '';
+
+        for (let i = 0; i < currentCells; i++) {
+            let value = startPositions[i];
+            if (value === undefined || value < MIN_POS || value > MAX_POS) {
+                value = Math.floor((MIN_POS + MAX_POS) / 2);
+            }
+
+            const col = document.createElement('div');
+            col.className = 'col-6 col-sm-4 col-md-3 col-lg-2 mb-2';
+            col.innerHTML = `
+                <div class="card h-100 position-card">
+                    <div class="card-body p-2 text-center">
+                        <label class="form-label fw-bold small mb-2">Ячейка ${i+1}</label>
+                        <div class="d-flex justify-content-center align-items-center gap-1 mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger px-2" onclick="adjustPosition(${i}, -1)">
+                                <i class="fas fa-minus fa-xs"></i>
+                            </button>
+                            <div class="text-center px-1">
+                                <div>
+                                    <span class="fw-bold fs-4" id="pos-${i}" style="font-size: 1.3rem;">${value}</span>
+                                    <span class="text-muted small">/ ${MAX_POS}</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-success px-2" onclick="adjustPosition(${i}, 1)">
+                                <i class="fas fa-plus fa-xs"></i>
+                            </button>
+                        </div>
+                        <input type="hidden" name="start_positions_array" value="${value}" id="input-pos-${i}">
+                    </div>
+                </div>
+            `;
+            container.appendChild(col);
+            updatePositionVisual(i, value);
+        }
+    }
+
+    function updatePositionVisual(index, value) {
+        const visualContainer = document.getElementById(`visual-${index}`);
+        if (visualContainer) {
+            visualContainer.innerHTML = getPositionVisual(value);
+        }
+    }
+
+    function adjustPosition(index, delta) {
+        let currentValue = parseInt(document.getElementById(`pos-${index}`).innerText);
+        let newValue = currentValue + delta;
+
+        if (newValue >= MIN_POS && newValue <= MAX_POS) {
+            document.getElementById(`pos-${index}`).innerText = newValue;
+            document.getElementById(`input-pos-${index}`).value = newValue;
+            updatePositionVisual(index, newValue);
+            startPositions[index] = newValue;
+        }
+    }
+
+    function updateDependencies() {
+        const container = document.getElementById('dependenciesContainer');
+        container.innerHTML = '';
+
+        for (let i = 1; i <= currentCells; i++) {
+            const cellId = i.toString();
+            const deps = dependenciesData[cellId] || {};
+
+            const card = document.createElement('div');
+            card.className = 'card mb-2 dependency-card';
+            card.innerHTML = `
+                <div class="card-header bg-light py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-cube"></i> Ячейка ${i}
+                        </h6>
+                        <button type="button" class="btn btn-sm btn-success" onclick="addDependency(${i})">
+                            <i class="fas fa-plus"></i> Добавить
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-2">
+                    <div id="deps-${i}" class="dependencies-list"></div>
+                </div>
+            `;
+            container.appendChild(card);
+
+            const depsContainer = document.getElementById(`deps-${i}`);
+            if (!depsContainer) return;
+
+            if (Object.keys(deps).length === 0) {
+                depsContainer.innerHTML = '<div class="text-muted text-center py-1 small">Нет зависимостей</div>';
+            }
+
+            for (const [depCell, sign] of Object.entries(deps)) {
+                addDependencyRow(i, parseInt(depCell), sign);
+            }
+        }
+    }
+
+    function addDependencyRow(sourceCell, targetCell = null, sign = '+') {
+        const container = document.getElementById(`deps-${sourceCell}`);
+        if (!container) return;
+
+        if (container.innerHTML.includes('Нет зависимостей')) {
+            container.innerHTML = '';
+        }
+
+        const rowId = `dep-${sourceCell}-${Date.now()}-${Math.random()}`;
+
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'dependency-row mb-1 p-1';
+        rowDiv.id = rowId;
+        rowDiv.innerHTML = `
+            <div class="row g-1 align-items-center">
+                <div class="col-5">
+                    <select class="form-select form-select-sm dep-target" data-source="${sourceCell}" data-row="${rowId}" style="width: 100%;">
+                        ${generateCellOptions(sourceCell, targetCell)}
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="form-select form-select-sm dep-sign" data-source="${sourceCell}" data-row="${rowId}">
+                        <option value="+" ${sign === '+' ? 'selected' : ''}>➕ туда же</option>
+                        <option value="-" ${sign === '-' ? 'selected' : ''}>➖ противоположно</option>
+                    </select>
+                </div>
+                <div class="col-3">
+                    <button type="button" class="btn btn-danger btn-sm w-100 py-0" onclick="removeDependency('${rowId}', ${sourceCell})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(rowDiv);
+
+        const targetSelect = rowDiv.querySelector('.dep-target');
+        const signSelect = rowDiv.querySelector('.dep-sign');
+
+        targetSelect.addEventListener('change', function() {
+            if (this.value) {
+                updateDependencyData(sourceCell, this.value, signSelect.value);
+            }
+        });
+
+        signSelect.addEventListener('change', function() {
+            const targetValue = targetSelect.value;
+            if (targetValue) {
+                updateDependencyData(sourceCell, targetValue, this.value);
+            }
+        });
+    }
+
+    function generateCellOptions(sourceCell, selectedValue) {
+        let options = '';
+        for (let i = 1; i <= currentCells; i++) {
+            if (i !== sourceCell) {
+                const selected = (selectedValue === i) ? 'selected' : '';
+                options += `<option value="${i}" ${selected}>Ячейка ${i}</option>`;
+            }
+        }
+        return options;
+    }
+
+    function removeDependency(rowId, sourceCell) {
+        const row = document.getElementById(rowId);
+        if (row) {
+            const targetSelect = row.querySelector('.dep-target');
+            const targetValue = targetSelect.value;
+            if (targetValue && dependenciesData[sourceCell]) {
+                delete dependenciesData[sourceCell][targetValue];
+                if (Object.keys(dependenciesData[sourceCell]).length === 0) {
+                    delete dependenciesData[sourceCell];
+                }
+            }
+            row.remove();
+
+            const container = document.getElementById(`deps-${sourceCell}`);
+            if (container && container.children.length === 0) {
+                container.innerHTML = '<div class="text-muted text-center py-1 small">Нет зависимостей</div>';
+            }
+        }
+    }
+
+    function addDependency(sourceCell) {
+        addDependencyRow(sourceCell);
+    }
+
+    function updateDependencyData(sourceCell, targetCell, sign) {
+        if (!targetCell) return;
+
+        if (!dependenciesData[sourceCell]) {
+            dependenciesData[sourceCell] = {};
+        }
+
+        dependenciesData[sourceCell][targetCell] = sign;
+
+        const container = document.getElementById(`deps-${sourceCell}`);
+        const rows = container.querySelectorAll('.dependency-row');
+        let firstOccurrence = true;
+
+        rows.forEach(row => {
+            const select = row.querySelector('.dep-target');
+            if (select && select.value === targetCell) {
+                if (firstOccurrence) {
+                    firstOccurrence = false;
+                } else {
+                    row.remove();
+                }
+            }
+        });
+    }
+
+    // Подготовка данных перед отправкой формы
+    document.getElementById('castleForm').addEventListener('submit', function(e) {
+        const startPositionsArray = [];
+        for (let i = 0; i < currentCells; i++) {
+            const posInput = document.getElementById(`input-pos-${i}`);
+            if (posInput) {
+                startPositionsArray.push(parseInt(posInput.value));
+            }
+        }
+
+        let startPosField = document.querySelector('input[name="start_positions"]');
+        if (!startPosField) {
+            startPosField = document.createElement('input');
+            startPosField.type = 'hidden';
+            startPosField.name = 'start_positions';
+            this.appendChild(startPosField);
+        }
+        startPosField.value = JSON.stringify(startPositionsArray);
+
+        let depsField = document.querySelector('input[name="dependencies"]');
+        if (!depsField) {
+            depsField = document.createElement('input');
+            depsField.type = 'hidden';
+            depsField.name = 'dependencies';
+            this.appendChild(depsField);
+        }
+        depsField.value = JSON.stringify(dependenciesData);
+
+        const tempInputs = this.querySelectorAll('input[name="start_positions_array"]');
+        tempInputs.forEach(input => input.remove());
+    });
+</script>
+
+<style>
+    .position-dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: inline-block;
+        transition: none;
+    }
+
+    .position-dot-1, .position-dot-7 { background-color: #dc3545; }
+    .position-dot-2, .position-dot-6 { background-color: #fd7e14; }
+    .position-dot-3, .position-dot-5 { background-color: #ffc107; }
+    .position-dot-4 { background-color: #28a745; }
+    .position-dot-inactive { background-color: #e9ecef; border: 1px solid #dee2e6; }
+
+    .position-card { min-width: 120px; }
+    .position-card .card-body { padding: 0.5rem; }
+
+    .btn-outline-danger, .btn-outline-success { line-height: 1; padding: 0.25rem 0.5rem; }
+
+    .dependency-card { transition: none; }
+    .dependency-row { background-color: #f8f9fa; border-radius: 6px; transition: none; }
+    .dependency-row:hover { background-color: #e9ecef; }
+
+    .card { transition: none; }
+    .card:hover { transform: none; box-shadow: none; }
+    .btn-outline-danger:hover, .btn-outline-success:hover { transform: none; }
+
+    .form-select-sm { font-size: 0.8rem; padding: 0.2rem 0.5rem; }
+    .dependencies-list { max-height: 200px; overflow-y: auto; }
+
+    @media (max-width: 768px) {
+        .position-dot { width: 14px; height: 14px; }
+        .position-card { min-width: 100px; }
+        .btn-outline-danger, .btn-outline-success { padding: 0.15rem 0.35rem; }
+        .fw-bold.fs-4 { font-size: 1.1rem; }
+        .form-select-sm { font-size: 0.7rem; padding: 0.15rem 0.3rem; }
+        .btn-sm { font-size: 0.7rem; padding: 0.15rem 0.3rem; }
+    }
+
+    @media (max-width: 576px) {
+        .position-dot { width: 10px; height: 10px; }
+        .position-card { min-width: 85px; }
+        .gap-1 { gap: 0.15rem !important; }
+    }
+</style>
+{% endblock %}

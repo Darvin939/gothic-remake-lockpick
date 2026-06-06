@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Глобальные настройки{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-cogs"></i> Глобальные настройки</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Эти настройки применяются ко всем замкам в системе
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="min_cells" class="form-label">
+                                <i class="fas fa fa-minimize"></i> Минимум ячеек
+                            </label>
+                            <input type="number" class="form-control" id="min_cells" name="min_cells"
+                                   min="1" max="19" required
+                                   value="{{ settings.get('min_cells', {}).get('value', '3') }}">
+                            <small class="text-muted">{{ settings.get('min_cells', {}).get('description', '') }}</small>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="max_cells" class="form-label">
+                                <i class="fas fa fa-maximize"></i> Максимум ячеек
+                            </label>
+                            <input type="number" class="form-control" id="max_cells" name="max_cells"
+                                   min="2" max="20" required
+                                   value="{{ settings.get('max_cells', {}).get('value', '8') }}">
+                            <small class="text-muted">{{ settings.get('max_cells', {}).get('description', '') }}</small>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="min_position" class="form-label">
+                                <i class="fas fa-arrow-left"></i> Минимальная позиция
+                            </label>
+                            <input type="number" class="form-control" id="min_position" name="min_position"
+                                   min="0" max="6" required
+                                   value="{{ settings.get('min_position', {}).get('value', '1') }}">
+                            <small class="text-muted">{{ settings.get('min_position', {}).get('description', '') }}</small>
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label for="max_position" class="form-label">
+                                <i class="fas fa-arrow-right"></i> Максимальная позиция
+                            </label>
+                            <input type="number" class="form-control" id="max_position" name="max_position"
+                                   min="2" max="20" required
+                                   value="{{ settings.get('max_position', {}).get('value', '7') }}">
+                            <small class="text-muted">{{ settings.get('max_position', {}).get('description', '') }}</small>
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label for="target_position" class="form-label">
+                                <i class="fas fa-bullseye"></i> Целевая позиция
+                            </label>
+                            <input type="number" class="form-control" id="target_position" name="target_position"
+                                   required
+                                   value="{{ settings.get('target_position', {}).get('value', '4') }}">
+                            <small class="text-muted">{{ settings.get('target_position', {}).get('description', '') }}</small>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Внимание!</strong> Изменение настроек может повлиять на существующие замки.
+                        Убедитесь, что все замки соответствуют новым ограничениям.
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> На главную
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Сохранить настройки
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Текущие ограничения системы</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Диапазон ячеек
+                        <span class="badge bg-primary rounded-pill">
+                            {{ settings.get('min_cells', {}).get('value', '3') }} - {{ settings.get('max_cells', {}).get('value', '8') }}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Диапазон позиций
+                        <span class="badge bg-primary rounded-pill">
+                            {{ settings.get('min_position', {}).get('value', '1') }} - {{ settings.get('max_position', {}).get('value', '7') }}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        Целевая позиция
+                        <span class="badge bg-success rounded-pill">
+                            {{ settings.get('target_position', {}).get('value', '4') }}
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

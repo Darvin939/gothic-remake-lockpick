@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto text-center">
+        <h1 class="display-4 mb-4">
+            <i class="fas fa-fort"></i>  Gothic1 Remake Lockpicker
+        </h1>
+        <p class="lead">
+            Система для управления и взлома замков
+        </p>
+        <hr class="my-4">
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary mb-3 text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-castle"></i> Всего замков
+                </h5>
+                <p class="card-text display-4">{{ stats.total }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3 text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-check"></i> Решаемые
+                </h5>
+                <p class="card-text display-4">{{ stats.solvable }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger mb-3 text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-times"></i> Нерешаемые
+                </h5>
+                <p class="card-text display-4">{{ stats.unsolvable }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3 text-center">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-chart-line"></i> Сред. ходов
+                </h5>
+                <p class="card-text display-4">{{ stats.avg_moves }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Информация о текущих настройках -->
+<div class="row mt-2 mb-4">
+    <div class="col-md-10 mx-auto">
+        <div class="alert alert-secondary text-center small">
+            <i class="fas fa-cogs"></i>
+            <strong>Текущие настройки:</strong>
+            Ячейки: {{ settings.get('min_cells', {}).get('value', '3') }} - {{ settings.get('max_cells', {}).get('value', '8') }} |
+            Позиции: {{ settings.get('min_position', {}).get('value', '1') }} - {{ settings.get('max_position', {}).get('value', '7') }} |
+            Цель: позиция {{ settings.get('target_position', {}).get('value', '4') }}
+        </div>
+    </div>
+</div>
+
+<div class="row mt-2">
+    <div class="col-md-8 mx-auto">
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{{ url_for('castles') }}" class="btn btn-lg btn-primary px-4">
+                <i class="fas fa-list"></i> Управление замками
+            </a>
+            <a href="{{ url_for('new_castle') }}" class="btn btn-lg btn-success px-4">
+                <i class="fas fa-plus"></i> Создать замок
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Блок с информацией о возможностях -->
+<div class="row mt-5">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-info-circle"></i> О системе</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <i class="fas fa-puzzle-piece fa-2x text-primary"></i>
+                            <h6 class="mt-2">Зависимые ячейки</h6>
+                            <p class="small text-muted">Настройте связи между ячейками со знаками "+" и "-"</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <i class="fas fa-chart-line fa-2x text-success"></i>
+                            <h6 class="mt-2">Автопоиск решения</h6>
+                            <p class="small text-muted">BFS алгоритм найдёт кратчайший путь к открытию замка</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <i class="fas fa-chalkboard-user fa-2x text-info"></i>
+                            <h6 class="mt-2">Визуализация шагов</h6>
+                            <p class="small text-muted">Пошаговое отображение с анимацией перемещений</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card-text.display-4 {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 0;
+    }
+
+    .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1.1rem;
+        border-radius: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-lg:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .gap-3 {
+        gap: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .card-text.display-4 {
+            font-size: 1.8rem;
+        }
+
+        .btn-lg {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .gap-3 {
+            gap: 0.75rem;
+        }
+    }
+</style>
+{% endblock %}
