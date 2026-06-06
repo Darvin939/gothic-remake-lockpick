@@ -1,11 +1,28 @@
 import json
+import os
+import sys
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 
 from cracker import CastleCracker
 from database import Database
 
-app = Flask(__name__)
+
+# Функция для получения правильного пути к файлам
+def resource_path(relative_path):
+    """ Получить абсолютный путь к ресурсу, работает для dev и для PyInstaller """
+    try:
+        # PyInstaller создает временную папку и хранит путь в _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
+template_dir = resource_path('templates')
+app = Flask(__name__, template_folder=template_dir)
+
 app.secret_key = 'castle_cracker_secret_key_2024'
 db = Database('castles.db')
 
