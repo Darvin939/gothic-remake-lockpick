@@ -102,32 +102,34 @@ def settings():
 
 @app.route('/castles')
 def castles():
-    """Список всех замков с поиском и пагинацией"""
-    # Получаем параметры из запроса
+    """Список всех замков с поиском, фильтрацией по тегам и пагинацией"""
     search = request.args.get('search', '').strip()
+    selected_tags_str = request.args.get('selected_tags', '')
+    selected_tags = [t.strip() for t in selected_tags_str.split(',') if t.strip()] if selected_tags_str else []
+
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 12, type=int)
 
-    # Ограничиваем количество на странице
-    per_page = min(per_page, 24)  # максимум 24 на странице
+    per_page = min(per_page, 24)
+    castles_list, total = db.get_all_castles(
+        search=search if search else None,
+        tag_filters=selected_tags if selected_tags else None,
+        page=page,
+        per_page=per_page
+    )
 
-    # Получаем данные из БД
-    castles_list, total = db.get_all_castles(search=search if search else None,
-                                             page=page,
-                                             per_page=per_page)
-
-    # Рассчитываем пагинацию
     total_pages = (total + per_page - 1) // per_page
     page = min(page, total_pages) if total_pages > 0 else 1
-
-    # Диапазон страниц для отображения
     page_range = range(max(1, page - 2), min(total_pages, page + 2) + 1)
 
     settings = db.get_all_settings()
+    popular_tags = db.get_all_tags(limit=50)
 
     return render_template('castles.html',
                            castles=castles_list,
                            search=search,
+                           selected_tags=selected_tags,
+                           popular_tags=popular_tags,
                            current_page=page,
                            total_pages=total_pages,
                            page_range=page_range,
@@ -151,11 +153,23 @@ def new_castle():
             # Валидация имени
             name = request.form['name'].strip()
             if not name:
-                flash('Название замка не может быть пустым или состоять только из пробелов', 'danger')
+                flash('Название замка не может быть пустым', 'danger')
                 return redirect(url_for('new_castle'))
 
             if len(name) > 100:
                 flash('Название замка не может быть длиннее 100 символов', 'danger')
+                return redirect(url_for('new_castle'))
+
+            # Проверка уникальности имени
+            if db.check_castle_name_exists(name):
+                flash(f'Замок с именем "{name}" уже существует', 'danger')
+                return redirect(url_for('new_castle'))
+
+            # Получаем теги
+            tags = request.form.getlist('tags')
+            tags = [t.strip().lower() for t in tags if t.strip()]
+            if len(tags) > 5:
+                flash('Максимум 5 тегов на замок', 'danger')
                 return redirect(url_for('new_castle'))
 
             castle_data = {
@@ -165,11 +179,6 @@ def new_castle():
                 'dependencies': json.loads(request.form['dependencies']),
                 'settings': settings
             }
-
-            # Проверка уникальности имени
-            if db.check_castle_name_exists(castle_data['name']):
-                flash(f'Замок с именем "{castle_data["name"]}" уже существует', 'danger')
-                return redirect(url_for('new_castle'))
 
             # валидация
             if not (min_cells <= castle_data['cells'] <= max_cells):
@@ -208,8 +217,9 @@ def new_castle():
             castle_data['has_solution'] = solution is not None
             castle_data['solution_length'] = len(solution) if solution else 0
 
-            castle_id = db.create_castle(castle_data)
-            flash(f'Замок "{castle_data["name"]}" успешно создан!', 'success')
+            castle_id = db.create_castle_with_tags(castle_data, tags)
+
+            flash(f'Замок "{name}" успешно создан!', 'success')
             return redirect(url_for('castle_detail', castle_id=castle_id))
 
         except Exception as e:
@@ -229,6 +239,9 @@ def edit_castle(castle_id):
         flash('Замок не найден', 'danger')
         return redirect(url_for('castles'))
 
+    # Загружаем теги замка
+    castle['tags'] = db.get_castle_tags(castle_id)
+
     settings = db.get_all_settings()
     min_cells = int(settings.get('min_cells', {}).get('value', 3))
     max_cells = int(settings.get('max_cells', {}).get('value', 8))
@@ -237,14 +250,24 @@ def edit_castle(castle_id):
 
     if request.method == 'POST':
         try:
-            # Валидация имени
             name = request.form['name'].strip()
             if not name:
-                flash('Название замка не может быть пустым или состоять только из пробелов', 'danger')
+                flash('Название замка не может быть пустым', 'danger')
                 return redirect(url_for('edit_castle', castle_id=castle_id))
 
             if len(name) > 100:
                 flash('Название замка не может быть длиннее 100 символов', 'danger')
+                return redirect(url_for('edit_castle', castle_id=castle_id))
+
+            if db.check_castle_name_exists(name, exclude_id=castle_id):
+                flash(f'Замок с именем "{name}" уже существует', 'danger')
+                return redirect(url_for('edit_castle', castle_id=castle_id))
+
+            # Получаем теги
+            tags = request.form.getlist('tags')
+            tags = [t.strip().lower() for t in tags if t.strip()]
+            if len(tags) > 5:
+                flash('Максимум 5 тегов на замок', 'danger')
                 return redirect(url_for('edit_castle', castle_id=castle_id))
 
             castle_data = {
@@ -254,11 +277,6 @@ def edit_castle(castle_id):
                 'dependencies': json.loads(request.form['dependencies']),
                 'settings': settings
             }
-
-            # Проверка уникальности имени (исключая текущий замок)
-            if db.check_castle_name_exists(castle_data['name'], exclude_id=castle_id):
-                flash(f'Замок с именем "{castle_data["name"]}" уже существует', 'danger')
-                return redirect(url_for('edit_castle', castle_id=castle_id))
 
             # валидация
             if not (min_cells <= castle_data['cells'] <= max_cells):
@@ -281,8 +299,9 @@ def edit_castle(castle_id):
             castle_data['has_solution'] = solution is not None
             castle_data['solution_length'] = len(solution) if solution else 0
 
-            db.update_castle(castle_id, castle_data)
-            flash(f'Замок "{castle_data["name"]}" успешно обновлён!', 'success')
+            db.update_castle_with_tags(castle_id, castle_data, tags)
+
+            flash(f'Замок "{name}" успешно обновлён!', 'success')
             return redirect(url_for('castle_detail', castle_id=castle_id))
 
         except Exception as e:
@@ -351,13 +370,14 @@ def api_castles():
 
 @app.route('/castle/<int:castle_id>/export')
 def export_castle(castle_id):
-    """Экспорт конфигурации замка в JSON"""
+    """Экспорт конфигурации замка в JSON с тегами"""
     castle = db.get_castle(castle_id)
     if not castle:
         flash('Замок не найден', 'danger')
         return redirect(url_for('castles'))
 
-    # Подготавливаем данные для экспорта
+    tags = db.get_castle_tags(castle_id)
+
     export_data = {
         'version': '1.0',
         'export_date': datetime.now().isoformat(),
@@ -365,17 +385,16 @@ def export_castle(castle_id):
             'name': castle['name'],
             'cells': castle['cells'],
             'start_positions': castle['start_positions'],
-            'dependencies': castle['dependencies']
+            'dependencies': castle['dependencies'],
+            'tags': tags
         }
     }
 
-    # Создаем JSON строку с отступами для читаемости
     json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
 
     # Используем только ID для имени файла (без кириллицы)
     filename = f"castle_{castle_id}.json"
 
-    # Создаем ответ с файлом
     response = make_response(json_str.encode('utf-8'))
     response.headers['Content-Type'] = 'application/json; charset=utf-8'
     response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
@@ -398,11 +417,14 @@ def export_all_castles():
         }
 
         for castle in castles_list:
+            tags = db.get_castle_tags(castle['id'])
+
             export_data['castles'].append({
                 'name': castle['name'],
                 'cells': castle['cells'],
                 'start_positions': castle['start_positions'],
-                'dependencies': castle['dependencies']
+                'dependencies': castle['dependencies'],
+                'tags': tags
             })
 
         json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
@@ -548,7 +570,11 @@ def import_castles():
                     new_castle['has_solution'] = solution is not None
                     new_castle['solution_length'] = len(solution) if solution else 0
 
-                    db.create_castle(new_castle)
+                    if 'tags' in castle_data:
+                        db.create_castle_with_tags(new_castle, castle_data['tags'])
+                    else:
+                        db.create_castle_with_tags(new_castle, [])
+
                     imported_count += 1
 
                 except Exception as e:
@@ -620,7 +646,8 @@ def automate_castle(castle_id):
             total_steps = len(solution)
             automation_statuses[castle_id]['total_steps'] = total_steps
             automation_statuses[castle_id]['status'] = 'waiting'
-            automation_statuses[castle_id]['message'] = f'Найдено решение ({total_steps} шагов). Ожидание {delay_before} сек...'
+            automation_statuses[castle_id][
+                'message'] = f'Найдено решение ({total_steps} шагов). Ожидание {delay_before} сек...'
 
             # Ждем перед началом
             time.sleep(delay_before)
@@ -640,7 +667,8 @@ def automate_castle(castle_id):
                 # Проверка на остановку
                 if not is_automation_active(castle_id):
                     automation_statuses[castle_id]['status'] = 'stopped'
-                    automation_statuses[castle_id]['message'] = f'Автоматизация остановлена на шаге {step_num-1}/{total_steps}'
+                    automation_statuses[castle_id][
+                        'message'] = f'Автоматизация остановлена на шаге {step_num - 1}/{total_steps}'
                     return
 
                 automation_statuses[castle_id]['current_step'] = step_num
@@ -682,6 +710,7 @@ def automate_castle(castle_id):
         'total_steps': automation_statuses[castle_id].get('total_steps', 0)
     })
 
+
 @app.route('/castle/<int:castle_id>/automate/status', methods=['GET'])
 def automation_status(castle_id):
     """Получение статуса автоматизации"""
@@ -690,6 +719,7 @@ def automation_status(castle_id):
         status['active'] = castle_id in active_automations and active_automations[castle_id].is_alive()
         return jsonify(status)
     return jsonify({'active': False, 'status': 'idle', 'message': 'Нет активной автоматизации'})
+
 
 @app.route('/castle/<int:castle_id>/automate/stop', methods=['POST'])
 def stop_automation(castle_id):
@@ -709,6 +739,7 @@ def stop_automation(castle_id):
         return jsonify({'success': True, 'message': 'Автоматизация остановлена'})
 
     return jsonify({'success': False, 'message': 'Нет активной автоматизации'})
+
 
 def is_automation_active(castle_id):
     """Проверка, активна ли автоматизация"""

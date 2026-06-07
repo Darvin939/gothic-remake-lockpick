@@ -52,6 +52,32 @@
                         <div id="dependenciesContainer"></div>
                     </div>
 
+                    <div class="mb-4">
+                        <label class="form-label h5">
+                            <i class="fas fa-tags"></i> Теги (максимум 5)
+                        </label>
+                        <div class="card">
+                            <div class="card-body">
+                                <div id="tagsContainer" class="d-flex flex-wrap gap-2 mb-3">
+                                    <!-- Теги будут добавляться сюда -->
+                                </div>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="tagInput"
+                                           placeholder="Введите тег (макс. 30 символов)"
+                                           maxlength="30">
+                                    <button class="btn btn-outline-primary" type="button" id="addTagBtn">
+                                        <i class="fas fa-plus"></i> Добавить
+                                    </button>
+                                </div>
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i>
+                                    Теги помогают группировать замки. Максимум 5 тегов на замок.
+                                    Теги автоматически приводятся к нижнему регистру.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i>
                         <strong>Целевая позиция:</strong> {{ target_pos }} (задано в глобальных настройках)
@@ -78,10 +104,119 @@
     let dependenciesData = {};
     let startPositions = [];
 
+    // Управление тегами
+    let currentTags = [];
+
+    // Загрузка тегов при редактировании
+    {% if castle and castle.tags %}
+    currentTags = {{ castle.tags | tojson }};
+    {% endif %}
+
     // Границы из настроек
     const MIN_POS = {{ min_pos }};
     const MAX_POS = {{ max_pos }};
-    const TARGET_POS = {{ target_pos }};
+
+    function renderTags() {
+        const container = document.getElementById('tagsContainer');
+        container.innerHTML = '';
+
+        currentTags.forEach((tag, index) => {
+            const tagBadge = document.createElement('span');
+            tagBadge.className = 'badge bg-primary d-flex align-items-center gap-1 p-2';
+            tagBadge.style.fontSize = '0.9rem';
+            tagBadge.innerHTML = `
+            <i class="fas fa-tag"></i>
+            ${escapeHtml(tag)}
+            <button type="button" class="btn-close btn-close-white ms-1"
+                    style="font-size: 0.6rem;"
+                    onclick="removeTag(${index})"></button>
+            <input type="hidden" name="tags" value="${escapeHtml(tag)}">
+        `;
+            container.appendChild(tagBadge);
+        });
+
+        // Обновляем состояние кнопки добавления
+        const addBtn = document.getElementById('addTagBtn');
+        const tagInput = document.getElementById('tagInput');
+        if (currentTags.length >= 5) {
+            addBtn.disabled = true;
+            tagInput.disabled = true;
+            tagInput.placeholder = 'Достигнут лимит тегов (5)';
+        } else {
+            addBtn.disabled = false;
+            tagInput.disabled = false;
+            tagInput.placeholder = 'Введите тег (макс. 30 символов)';
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function addTag() {
+        const input = document.getElementById('tagInput');
+        let tag = input.value.trim().toLowerCase();
+
+        if (!tag) {
+            showTagNotification('Введите тег', 'warning');
+            return;
+        }
+
+        if (tag.length > 30) {
+            showTagNotification('Тег не может быть длиннее 30 символов', 'danger');
+            return;
+        }
+
+        if (currentTags.includes(tag)) {
+            showTagNotification('Такой тег уже добавлен', 'warning');
+            input.value = '';
+            return;
+        }
+
+        if (currentTags.length >= 5) {
+            showTagNotification('Достигнут лимит тегов (5)', 'danger');
+            return;
+        }
+
+        currentTags.push(tag);
+        renderTags();
+        input.value = '';
+    }
+
+    function removeTag(index) {
+        currentTags.splice(index, 1);
+        renderTags();
+    }
+
+    function showTagNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+        notification.style.zIndex = '9999';
+        notification.style.minWidth = '250px';
+        notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    // Инициализация тегов
+    document.addEventListener('DOMContentLoaded', function() {
+        renderTags();
+
+        // Добавление по Enter
+        document.getElementById('tagInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addTag();
+            }
+        });
+
+        document.getElementById('addTagBtn').addEventListener('click', addTag);
+    });
 
     // Инициализация при загрузке
     document.addEventListener('DOMContentLoaded', function() {

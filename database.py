@@ -1,7 +1,7 @@
 import json
 import sqlite3
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 
 
 class Database:
@@ -45,10 +45,65 @@ class Database:
                            )
                            ''')
 
+            # Создание таблицы тегов
+            cursor.execute('''
+                           CREATE TABLE IF NOT EXISTS tags (
+                                                               id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                               name TEXT UNIQUE NOT NULL,
+                                                               usage_count INTEGER DEFAULT 0,
+                                                               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                           )
+                           ''')
+
+            # Создание связующей таблицы замков и тегов
+            cursor.execute('''
+                           CREATE TABLE IF NOT EXISTS castle_tags (
+                                                                      castle_id INTEGER,
+                                                                      tag_id INTEGER,
+                                                                      FOREIGN KEY (castle_id) REFERENCES castles(id) ON DELETE CASCADE,
+                               FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+                               PRIMARY KEY (castle_id, tag_id)
+                               )
+                           ''')
+
             # Создание индексов для поиска
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_name ON castles(name)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_solvable ON castles(has_solution)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_created ON castles(created_at)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_tag_name ON tags(name)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_tag_count ON tags(usage_count DESC)')
+
+            # Создание триггеров для автоматического обновления счётчиков тегов
+            cursor.execute('''
+                           CREATE TRIGGER IF NOT EXISTS update_tag_usage_on_insert
+                           AFTER INSERT ON castle_tags
+                           BEGIN
+                           UPDATE tags
+                           SET usage_count = (SELECT COUNT(*)
+                                              FROM castle_tags
+                                              WHERE castle_tags.tag_id = NEW.tag_id)
+                           WHERE id = NEW.tag_id;
+                           END;
+                           ''')
+
+            cursor.execute('''
+                           CREATE TRIGGER IF NOT EXISTS update_tag_usage_on_delete
+                           AFTER
+                           DELETE
+                           ON castle_tags
+                           BEGIN
+                           UPDATE tags
+                           SET usage_count = (SELECT COUNT(*)
+                                              FROM castle_tags
+                                              WHERE castle_tags.tag_id = OLD.tag_id)
+                           WHERE id = OLD.tag_id;
+
+                           DELETE
+                           FROM tags
+                           WHERE id = OLD.tag_id
+                             AND usage_count = 0;
+                           END;
+                           ''')
 
             # Инициализация настроек по умолчанию
             self._init_default_settings(cursor)
@@ -72,6 +127,32 @@ class Database:
                 VALUES (?, ?, ?, ?)
                            ''', (key, value, description, datetime.now().isoformat()))
 
+    def get_castle_tags(self, castle_id: int) -> List[str]:
+        """Получение тегов замка"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                           SELECT t.name FROM tags t
+                                                  JOIN castle_tags ct ON ct.tag_id = t.id
+                           WHERE ct.castle_id = ?
+                           ORDER BY t.name
+                           ''', (castle_id,))
+            return [row['name'] for row in cursor.fetchall()]
+
+    def get_all_tags(self, limit: int = 50) -> List[Dict]:
+        """Получение всех тегов с сортировкой по популярности"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                           SELECT name, usage_count
+                           FROM tags
+                           WHERE usage_count > 0
+                           ORDER BY usage_count DESC, name
+                               LIMIT ?
+                           ''', (limit,))
+            return [{'name': row['name'], 'count': row['usage_count']} for row in cursor.fetchall()]
+
+
     # Методы для работы с настройками
     def get_setting(self, key: str) -> Optional[str]:
         """Получение значения настройки"""
@@ -88,23 +169,6 @@ class Database:
             cursor.execute('SELECT key, value, description FROM settings')
             rows = cursor.fetchall()
             return {row['key']: {'value': row['value'], 'description': row['description']} for row in rows}
-
-    def update_setting(self, key: str, value: str) -> bool:
-        """Обновление настройки"""
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                               UPDATE settings
-                               SET value      = ?,
-                                   updated_at = ?
-                               WHERE key = ?
-                               ''', (value, datetime.now().isoformat(), key))
-                conn.commit()
-                return cursor.rowcount > 0
-        except Exception as e:
-            print(f"Error updating setting {key}: {e}")
-            return False
 
     def update_settings_batch(self, settings: Dict[str, str]) -> bool:
         """Массовое обновление настроек"""
@@ -124,35 +188,8 @@ class Database:
             print(f"Error updating settings: {e}")
             return False
 
-    # CRUD операции для замков
-    def create_castle(self, castle_data: Dict) -> int:
-        """Создание нового замка с проверкой настроек"""
-        max_cells = int(self.get_setting('max_cells') or '8')
-        min_cells = int(self.get_setting('min_cells') or '3')
-
-        if castle_data['cells'] < min_cells or castle_data['cells'] > max_cells:
-            raise ValueError(f"Количество ячеек должно быть от {min_cells} до {max_cells}")
-
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                           INSERT INTO castles (name, cells, start_positions, dependencies,
-                                                has_solution, solution_length, updated_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?)
-                           ''', (
-                               castle_data['name'],
-                               castle_data['cells'],
-                               json.dumps(castle_data['start_positions']),
-                               json.dumps(castle_data['dependencies']),
-                               castle_data.get('has_solution', False),
-                               castle_data.get('solution_length', 0),
-                               datetime.now().isoformat()
-                           ))
-            conn.commit()
-            return cursor.lastrowid
-
     def get_castle(self, castle_id: int) -> Optional[Dict]:
-        """Получение замка по ID"""
+        """Получение замка по ID с тегами"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM castles WHERE id = ?', (castle_id,))
@@ -161,46 +198,74 @@ class Database:
             if row:
                 castle = self._row_to_dict(row)
                 castle['settings'] = self.get_all_settings()
+                # Добавляем теги
+                castle['tags'] = self.get_castle_tags(castle_id)
                 return castle
             return None
 
-    def get_all_castles(self, search: str = None, page: int = 1, per_page: int = 12) -> Tuple[List[Dict], int]:
-        """Получение всех замков с поиском и пагинацией"""
+    def get_all_castles(self, search: str = None, tag_filters: List[str] = None, page: int = 1, per_page: int = 12):
+        """Получение всех замков с поиском и фильтрацией по тегам"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
             # Базовый запрос
-            query = "SELECT * FROM castles"
-            count_query = "SELECT COUNT(*) as total FROM castles"
+            query = "SELECT DISTINCT c.* FROM castles c"
+            count_query = "SELECT COUNT(DISTINCT c.id) as total FROM castles c"
             params = []
+            count_params = []
 
-            # Добавляем поиск (регистронезависимый)
-            if search:
-                search_term = f"%{search}%"
-                query += " WHERE name LIKE ? COLLATE NOCASE"
-                count_query += " WHERE name LIKE ? COLLATE NOCASE"
-                params.append(search_term)
+            # Фильтр по тегам
+            if tag_filters and len(tag_filters) > 0:
+                query += " JOIN castle_tags ct ON ct.castle_id = c.id"
+                query += " JOIN tags t ON t.id = ct.tag_id"
+                count_query += " JOIN castle_tags ct ON ct.castle_id = c.id"
+                count_query += " JOIN tags t ON t.id = ct.tag_id"
+
+                placeholders = ','.join(['?' for _ in tag_filters])
+                query += f" WHERE t.name IN ({placeholders})"
+                count_query += f" WHERE t.name IN ({placeholders})"
+                params.extend(tag_filters)
+                count_params.extend(tag_filters)
+
+                # Группировка для проверки совпадения всех тегов
+                query += " GROUP BY c.id HAVING COUNT(DISTINCT t.id) = ?"
+                params.append(len(tag_filters))
+
+            # Поиск по названию
+            if search and search.strip():
+                search_param = f"%{search}%"
+                if tag_filters:
+                    query += " AND c.name LIKE ?"
+                    count_query += " AND c.name LIKE ?"
+                else:
+                    query += " WHERE c.name LIKE ?"
+                    count_query += " WHERE c.name LIKE ?"
+                params.append(search_param)
+                count_params.append(search_param)
 
             # Сортировка
-            query += " ORDER BY created_at DESC"
+            query += " ORDER BY c.created_at DESC"
 
             # Пагинация
             offset = (page - 1) * per_page
             query += " LIMIT ? OFFSET ?"
             params.extend([per_page, offset])
 
-            # Выполняем запрос
+            # Выполняем запрос для получения замков
             cursor.execute(query, params)
             rows = cursor.fetchall()
 
-            # Получаем общее количество
-            cursor.execute(count_query, params[:1] if search else [])
-            total = cursor.fetchone()['total']
+            # Выполняем запрос для подсчёта общего количества
+            # Используем отдельные параметры для count_query
+            cursor.execute(count_query, count_params)
+            total_row = cursor.fetchone()
+            total = total_row['total'] if total_row else 0
 
             castles = [self._row_to_dict(row) for row in rows]
             settings = self.get_all_settings()
             for castle in castles:
                 castle['settings'] = settings
+                castle['tags'] = self.get_castle_tags(castle['id'])
 
             return castles, total
 
@@ -214,8 +279,11 @@ class Database:
                 cursor.execute('SELECT id FROM castles WHERE name = ?', (name,))
             return cursor.fetchone() is not None
 
-    def update_castle(self, castle_id: int, castle_data: Dict):
-        """Обновление замка с проверкой настроек"""
+    def update_castle_with_tags(self, castle_id: int, castle_data: Dict, tags: List[str]):
+        """Единое обновление замка и его тегов в одной транзакции"""
+        if len(tags) > 5:
+            tags = tags[:5]
+
         max_cells = int(self.get_setting('max_cells') or '8')
         min_cells = int(self.get_setting('min_cells') or '3')
 
@@ -224,15 +292,12 @@ class Database:
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
+
+            # 1. Обновляем замок
             cursor.execute('''
                            UPDATE castles
-                           SET name            = ?,
-                               cells           = ?,
-                               start_positions = ?,
-                               dependencies    = ?,
-                               has_solution    = ?,
-                               solution_length = ?,
-                               updated_at      = ?
+                           SET name = ?, cells = ?, start_positions = ?, dependencies = ?,
+                               has_solution = ?, solution_length = ?, updated_at = ?
                            WHERE id = ?
                            ''', (
                                castle_data['name'],
@@ -244,13 +309,104 @@ class Database:
                                datetime.now().isoformat(),
                                castle_id
                            ))
+
+            # 2. Удаляем старые теги
+            cursor.execute('DELETE FROM castle_tags WHERE castle_id = ?', (castle_id,))
+
+            # 3. Добавляем новые теги
+            for tag_name in tags:
+                tag_name = tag_name.strip().lower()
+                if tag_name and len(tag_name) <= 30:
+                    # Получаем или создаём тег
+                    cursor.execute('SELECT id FROM tags WHERE name = ?', (tag_name,))
+                    row = cursor.fetchone()
+                    if row:
+                        tag_id = row['id']
+                    else:
+                        cursor.execute('INSERT INTO tags (name) VALUES (?)', (tag_name,))
+                        tag_id = cursor.lastrowid
+
+                    # Добавляем связь
+                    cursor.execute('''
+                                   INSERT OR IGNORE INTO castle_tags (castle_id, tag_id)
+                        VALUES (?, ?)
+                                   ''', (castle_id, tag_id))
+
+            # 4. Обновляем счётчики использования тегов
+            cursor.execute('''
+                           UPDATE tags SET usage_count = (
+                               SELECT COUNT(*) FROM castle_tags WHERE castle_tags.tag_id = tags.id
+                           )
+                           ''')
+
+            # 5. Одна транзакция - один commit
             conn.commit()
+
+    def create_castle_with_tags(self, castle_data: Dict, tags: List[str]) -> int:
+        """Единое создание замка и его тегов в одной транзакции"""
+        if len(tags) > 5:
+            tags = tags[:5]
+
+        max_cells = int(self.get_setting('max_cells') or '8')
+        min_cells = int(self.get_setting('min_cells') or '3')
+
+        if castle_data['cells'] < min_cells or castle_data['cells'] > max_cells:
+            raise ValueError(f"Количество ячеек должно быть от {min_cells} до {max_cells}")
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 1. Создаём замок
+            cursor.execute('''
+                           INSERT INTO castles (
+                               name, cells, start_positions, dependencies,
+                               has_solution, solution_length, updated_at
+                           ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                           ''', (
+                               castle_data['name'],
+                               castle_data['cells'],
+                               json.dumps(castle_data['start_positions']),
+                               json.dumps(castle_data['dependencies']),
+                               castle_data.get('has_solution', False),
+                               castle_data.get('solution_length', 0),
+                               datetime.now().isoformat()
+                           ))
+
+            castle_id = cursor.lastrowid
+
+            # 2. Добавляем теги
+            for tag_name in tags:
+                tag_name = tag_name.strip().lower()
+                if tag_name and len(tag_name) <= 30:
+                    cursor.execute('SELECT id FROM tags WHERE name = ?', (tag_name,))
+                    row = cursor.fetchone()
+                    if row:
+                        tag_id = row['id']
+                    else:
+                        cursor.execute('INSERT INTO tags (name) VALUES (?)', (tag_name,))
+                        tag_id = cursor.lastrowid
+
+                    cursor.execute('''
+                                   INSERT OR IGNORE INTO castle_tags (castle_id, tag_id)
+                        VALUES (?, ?)
+                                   ''', (castle_id, tag_id))
+
+            # 3. Обновляем счётчики
+            cursor.execute('''
+                           UPDATE tags SET usage_count = (
+                               SELECT COUNT(*) FROM castle_tags WHERE castle_tags.tag_id = tags.id
+                           )
+                           ''')
+
+            conn.commit()
+            return castle_id
 
     def delete_castle(self, castle_id: int):
         """Удаление замка"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM castles WHERE id = ?', (castle_id,))
+            cursor.execute('DELETE FROM castle_tags WHERE castle_id = ?', (castle_id,))
             conn.commit()
 
     def get_stats(self) -> Dict:
