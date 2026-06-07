@@ -78,17 +78,6 @@
             <div class="card-body">
                 <p class="mb-2">
                     <strong><i class="fas fa-table-cells"></i> Ячеек:</strong> {{ castle.cells }}
-                    <span class="text-muted">({{ castle.settings.get('min_cells', {}).get('value', '3') }}-{{ castle.settings.get('max_cells', {}).get('value', '8') }})</span>
-                </p>
-                <p class="mb-2">
-                    <strong><i class="fas fa-chart-line"></i> Диапазон позиций:</strong>
-                    {{ castle.settings.get('min_position', {}).get('value', '1') }}-{{ castle.settings.get('max_position', {}).get('value', '7') }}
-                </p>
-                <p class="mb-2">
-                    <strong><i class="fas fa-bullseye"></i> Цель:</strong>
-                    <span class="position-indicator position-{{ castle.settings.get('target_position', {}).get('value', '4') }}">
-                        {{ castle.settings.get('target_position', {}).get('value', '4') }}
-                    </span>
                 </p>
                 <p class="mb-2">
                     <strong><i class="fas fa-play"></i> Стартовые позиции:</strong>
