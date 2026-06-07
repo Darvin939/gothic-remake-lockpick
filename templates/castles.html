@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}Список замков{% endblock %}
+{% block title %}{{ _('castles.title') }}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <h2><i class="fas fa-castle"></i> Все замки</h2>
+    <h2><i class="fas fa-castle"></i> {{ _('castles.title') }}</h2>
     <div class="d-flex gap-2">
         <a href="{{ url_for('import_castles') }}" class="btn btn-info">
-            <i class="fas fa-file-import"></i> Импорт
+            <i class="fas fa-file-import"></i> {{ _('castles.import') }}
         </a>
         <a href="{{ url_for('export_all_castles') }}" class="btn btn-success">
-            <i class="fas fa-file-export"></i> Экспорт все
+            <i class="fas fa-file-export"></i> {{ _('castles.export_all') }}
         </a>
         <a href="{{ url_for('new_castle') }}" class="btn btn-success">
-            <i class="fas fa-plus"></i> Создать замок
+            <i class="fas fa-plus"></i> {{ _('castles.create') }}
         </a>
     </div>
 </div>
@@ -27,7 +27,7 @@
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-search"></i></span>
                         <input type="text" class="form-control" name="search"
-                               placeholder="Поиск по названию..."
+                               placeholder="{{ _('castles.search_placeholder') }}"
                                value="{{ search }}">
                     </div>
                 </div>
@@ -37,13 +37,13 @@
                         <button class="btn btn-outline-secondary dropdown-toggle w-100"
                                 type="button" data-bs-toggle="dropdown">
                             <i class="fas fa-tags"></i>
-                            Фильтр по тегам
+                            {{ _('castles.tag.filter') }}
                             {% if selected_tags %}({{ selected_tags|length }}){% endif %}
                         </button>
                         <div class="dropdown-menu p-3" style="min-width: 250px; max-height: 300px; overflow-y: auto;">
                             <div class="mb-2">
                                 <input type="text" class="form-control form-control-sm"
-                                       id="tagSearchInput" placeholder="Поиск тегов...">
+                                       id="tagSearchInput" placeholder="{{ _('castles.tag.search') }}">
                             </div>
                             <div id="tagsList">
                                 {% for tag in popular_tags %}
@@ -65,15 +65,15 @@
                             <hr class="my-2">
                             <div class="d-grid gap-2">
                                 <button type="button" class="btn btn-sm btn-outline-primary" id="applyTagsBtn">
-                                    Применить фильтр
+                                    {{ _('castles.tag.filter_apply') }}
                                 </button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="clearTagsBtn">
-                                    Очистить
+                                    {{ _('castles.tag.filter_clean') }}
                                 </button>
                             </div>
                             {% else %}
                             <div class="text-muted text-center small">
-                                Нет популярных тегов
+                                {{ _('castles.tag.filter_nothing') }}
                             </div>
                             {% endif %}
                         </div>
@@ -83,11 +83,11 @@
                 <div class="col-md-4">
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary flex-fill">
-                            <i class="fas fa-search"></i> Искать
+                            <i class="fas fa-search"></i> {{ _('castles.search') }}
                         </button>
                         {% if search or selected_tags %}
                         <a href="{{ url_for('castles') }}" class="btn btn-secondary">
-                            <i class="fas fa-times"></i> Сброс
+                            <i class="fas fa-times"></i> {{ _('castles.reset') }}
                         </a>
                         {% endif %}
                     </div>
@@ -97,7 +97,7 @@
             <!-- Отображение выбранных тегов -->
             {% if selected_tags %}
             <div class="mt-3">
-                <strong><i class="fas fa-filter"></i> Активные фильтры:</strong>
+                <strong><i class="fas fa-filter"></i> {{ _('castles.filter_active') }}:</strong>
                 {% for tag in selected_tags %}
                 <span class="badge bg-primary ms-1">
                     {{ tag }}
@@ -121,12 +121,12 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <span class="text-muted">
-            Найдено: <strong>{{ total }}</strong> замков
-            {% if search %} по запросу "{{ search }}"{% endif %}
+            {{ _('castles.found') }}: <strong>{{ total }}</strong> {{ _('castles.castles_found') }}
+            {% if search %} {{ _('castles.castles_found_by') }} "{{ search }}"{% endif %}
         </span>
     </div>
     <div>
-        <label class="text-muted small me-2">Показывать:</label>
+        <label class="text-muted small me-2">{{ _('castles.show') }}:</label>
         <select class="form-select form-select-sm d-inline-block w-auto" onchange="changePerPage(this.value)">
             <option value="12" {% if per_page == 12 %}selected{% endif %}>12</option>
             <option value="24" {% if per_page == 24 %}selected{% endif %}>24</option>
@@ -147,10 +147,10 @@
             </div>
             <div class="card-body">
                 <p class="mb-2">
-                    <strong><i class="fas fa-table-cells"></i> Ячеек:</strong> {{ castle.cells }}
+                    <strong><i class="fas fa-table-cells"></i> {{ _('castles.cells') }}:</strong> {{ castle.cells }}
                 </p>
                 <p class="mb-2">
-                    <strong><i class="fas fa-play"></i> Стартовые позиции:</strong>
+                    <strong><i class="fas fa-play"></i> {{ _('castles.start_positions') }}:</strong>
                 </p>
                 <div class="mb-2">
                     {% for pos in castle.start_positions %}
@@ -158,17 +158,17 @@
                     {% endfor %}
                 </div>
                 <p class="mb-0">
-                    <strong>Статус:</strong>
+                    <strong>{{ _('castles.status') }}:</strong>
                     {% if castle.has_solution %}
                     <span class="badge bg-success">
-                            <i class="fas fa-check"></i> Решаемый
+                            <i class="fas fa-check"></i> {{ _('castles.solvable_status') }}
                         </span>
                     <span class="badge bg-info ms-1">
-                            <i class="fas fa-shoe-prints"></i> {{ castle.solution_length }} ходов
+                            <i class="fas fa-shoe-prints"></i> {{ _('castles.steps', count=castle.solution_length) }}
                         </span>
                     {% else %}
                     <span class="badge bg-danger">
-                            <i class="fas fa-times"></i> Нерешаемый
+                            <i class="fas fa-times"></i> {{ _('castles.unsolvable_status') }}
                         </span>
                     {% endif %}
                 </p>
@@ -176,7 +176,7 @@
                 <!-- Отображение тегов -->
                 {% if castle.tags and castle.tags|length > 0 %}
                 <p class="mb-2">
-                    <strong><i class="fas fa-tags"></i> Tags:</strong>
+                    <strong><i class="fas fa-tags"></i> {{ _('castles.tags') }}:</strong>
                 </p>
                 <div class="mb-2 d-flex flex-wrap gap-1">
                     {% for tag in castle.tags %}
@@ -191,18 +191,18 @@
                 <div class="d-flex gap-2">
                     <a href="{{ url_for('castle_detail', castle_id=castle.id) }}"
                        class="btn btn-info btn-sm flex-fill">
-                        <i class="fas fa-eye"></i> Просмотр
+                        <i class="fas fa-eye"></i> {{ _('castles.view') }}
                     </a>
                     <a href="{{ url_for('edit_castle', castle_id=castle.id) }}"
                        class="btn btn-warning btn-sm flex-fill">
-                        <i class="fas fa-edit"></i> Ред.
+                        <i class="fas fa-edit"></i> {{ _('castles.edit') }}
                     </a>
                     <form action="{{ url_for('delete_castle', castle_id=castle.id) }}"
                           method="POST"
                           style="display: inline; flex: 1;"
-                          onsubmit="return confirm('Удалить замок «{{ castle.name }}»?');">
+                          onsubmit="return confirm('{{ _("castles.delete_lock", name=castle.name) }}');">
                         <button type="submit" class="btn btn-danger btn-sm w-100">
-                            <i class="fas fa-trash"></i> Уд.
+                            <i class="fas fa-trash"></i> {{ _('castles.delete') }}
                         </button>
                     </form>
                 </div>
@@ -213,17 +213,17 @@
     <div class="col-12">
         <div class="alert alert-info text-center">
             <i class="fas fa-info-circle fa-2x mb-2"></i>
-            <h5>{% if search %}Ничего не найдено{% else %}Нет созданных замков{% endif %}</h5>
+            <h5>{% if search %}{{ _('castles.no_results') }}{% else %}{{ _('castles.no_castles') }}{% endif %}</h5>
             <p class="mb-0">
                 {% if search %}
-                Попробуйте изменить поисковый запрос
+                {{ _('castles.try_change_query') }}
                 {% else %}
-                Создайте первый замок, чтобы начать!
+                {{ _('castles.create_first') }}
                 {% endif %}
             </p>
             {% if not search %}
             <a href="{{ url_for('new_castle') }}" class="btn btn-primary mt-3">
-                <i class="fas fa-plus"></i> Создать замок
+                <i class="fas fa-plus"></i> {{ _('castles.create') }}
             </a>
             {% endif %}
         </div>
@@ -233,7 +233,7 @@
 
 <!-- Пагинация -->
 {% if total_pages > 1 %}
-<nav aria-label="Пагинация" class="mt-4">
+<nav aria-label="{{ _('castles.show') }}" class="mt-4">
     <ul class="pagination justify-content-center">
         <!-- Первая страница -->
         <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
@@ -273,7 +273,7 @@
         </li>
     </ul>
     <div class="text-center text-muted small">
-        Страница {{ current_page }} из {{ total_pages }} (всего {{ total }} замков)
+        {{ _('castle_form.page_info', current_page=current_page, total_pages=total_pages, total=total) }}
     </div>
 </nav>
 {% endif %}

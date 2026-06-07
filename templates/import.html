@@ -1,30 +1,30 @@
 {% extends "base.html" %}
 
-{% block title %}Импорт замков{% endblock %}
+{% block title %}{{ _('import.title') }}{% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-md-8 mx-auto">
         <div class="card">
             <div class="card-header">
-                <h4><i class="fas fa-file-import"></i> Импорт замков</h4>
+                <h4><i class="fas fa-file-import"></i> {{ _('import.title') }}</h4>
             </div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
                     <div class="mb-4">
-                        <label for="file" class="form-label">Выберите JSON файл с конфигурацией</label>
+                        <label for="file" class="form-label">{{ _('import.select_file') }}</label>
                         <input type="file" class="form-control" id="file" name="file" accept=".json" required>
-                        <small class="text-muted">Поддерживаются файлы в формате JSON (один замок или несколько)</small>
+                        <small class="text-muted">{{ _('import.file_hint') }}</small>
                     </div>
 
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i>
-                        <strong>Формат файла:</strong>
+                        <strong>{{ _('import.format_title') }}:</strong>
                         <pre class="mt-2 mb-0 small">
 {
   "version": "1.0",
   "castle": {
-    "name": "Название замка",
+    "name": "Lock name",
     "cells": 4,
     "start_positions": [1, 7, 3, 2],
     "dependencies": {
@@ -35,16 +35,16 @@
 }</pre>
                         <p class="mt-2 mb-0 small">
                             <i class="fas fa-lightbulb"></i>
-                            Можно импортировать несколько замков, используя поле "castles": [...]
+                            {{ _('import.import_info') }}
                         </p>
                     </div>
 
                     <div class="d-flex justify-content-between">
                         <a href="{{ url_for('castles') }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Назад
+                            <i class="fas fa-arrow-left"></i> {{ _('import.import') }}
                         </a>
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-upload"></i> Импортировать
+                            <i class="fas fa-upload"></i> {{ _('import.back') }}
                         </button>
                     </div>
                 </form>
@@ -53,20 +53,20 @@
 
         <div class="card mt-4">
             <div class="card-header">
-                <h5><i class="fas fa-question-circle"></i> Как экспортировать замки?</h5>
+                <h5><i class="fas fa-question-circle"></i> {{ _('import.how_to_export') }}</h5>
             </div>
             <div class="card-body">
-                <p>Для экспорта замков:</p>
+                <p>{{ _('import.for_export_hint') }}:</p>
                 <ul>
                     <li>
-                        <strong>Один замок:</strong>
-                        На странице замка нажмите кнопку
-                        <span class="badge bg-info">Экспорт</span>
+                        <strong>{{ _('import.export_single_title_strong') }}:</strong>
+                        {{ _('import.export_single_title') }}
+                        <span class="badge bg-info">{{ _('import.export_single') }}</span>
                     </li>
                     <li>
-                        <strong>Все замки:</strong>
-                        На странице списка замков нажмите кнопку
-                        <span class="badge bg-success">Экспорт все</span>
+                        <strong>{{ _('import.export_all_title_strong') }}:</strong>
+                        {{ _('import.export_all_title') }}
+                        <span class="badge bg-success">{{ _('import.export_all') }}</span>
                     </li>
                 </ul>
             </div>

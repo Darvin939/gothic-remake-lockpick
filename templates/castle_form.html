@@ -12,49 +12,48 @@
             <div class="card-body">
                 <form method="POST" id="castleForm">
                     <div class="mb-3">
-                        <label for="name" class="form-label">Название замка *</label>
+                        <label for="name" class="form-label">{{ _('castle_form.name') }} *</label>
                         <input type="text" class="form-control" id="name" name="name" required
                                value="{{ castle.name if castle else '' }}"
                                pattern=".*\S.*"
                                maxlength="100"
-                               title="Название не может состоять только из пробелов"
+                               title="{{ _('castle_form.name_hint') }}"
                                onblur="this.value = this.value.trim();">
-                        <small class="text-muted">Название не может быть пустым или состоять только из пробелов</small>
+                        <small class="text-muted">{{ _('castle_form.name_hint') }}</small>
                     </div>
 
                     <div class="mb-3">
                         <label for="cells" class="form-label">
-                            Количество ячеек ({{ min_cells }}-{{ max_cells }}) *
+                            {{ _('castle_form.cells', min=min_cells, max=max_cells) }} *
                         </label>
                         <input type="number" class="form-control" id="cells" name="cells"
                                min="{{ min_cells }}" max="{{ max_cells }}" required
                                value="{{ castle.cells if castle else min_cells }}"
                                onchange="updateCells()">
-                        <small class="text-muted">Допустимо от {{ min_cells }} до {{ max_cells }} ячеек</small>
+                        <small class="text-muted">{{ _('castle_form.cells_hint', min=min_cells, max=max_cells) }}</small>
                     </div>
 
                     <!-- Стартовые позиции пинов -->
                     <div class="mb-4">
                         <label class="form-label h5">
-                            🎯 Стартовые позиции пинов (от {{ min_pos }} до {{ max_pos }})
+                            🎯 {{ _('castle_form.start_positions', min=min_pos, max=max_pos) }}
                         </label>
                         <div id="startPositionsContainer" class="row g-2"></div>
                     </div>
 
                     <!-- Зависимости -->
                     <div class="mb-4">
-                        <label class="form-label h5">🔗 Зависимости ячеек</label>
+                        <label class="form-label h5">🔗 {{ _('castle_form.dependencies') }}</label>
                         <p class="text-muted small">
                             <i class="fas fa-info-circle"></i>
-                            "+" - зависимая ячейка двигается в ту же сторону,
-                            "-" - в противоположную
+                            {{ _('castle_form.dependencies_hint') }}
                         </p>
                         <div id="dependenciesContainer"></div>
                     </div>
 
                     <div class="mb-4">
                         <label class="form-label h5">
-                            <i class="fas fa-tags"></i> Теги (максимум 5)
+                            <i class="fas fa-tags"></i> {{ _('castle_form.tags') }}
                         </label>
                         <div class="card">
                             <div class="card-body">
@@ -63,16 +62,15 @@
                                 </div>
                                 <div class="input-group">
                                     <input type="text" class="form-control" id="tagInput"
-                                           placeholder="Введите тег (макс. 30 символов)"
+                                           placeholder="{{ _('castle_form.tag_placeholder_detailed') }}"
                                            maxlength="30">
                                     <button class="btn btn-outline-primary" type="button" id="addTagBtn">
-                                        <i class="fas fa-plus"></i> Добавить
+                                        <i class="fas fa-plus"></i> {{ _('castle_form.add_tag') }}
                                     </button>
                                 </div>
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle"></i>
-                                    Теги помогают группировать замки. Максимум 5 тегов на замок.
-                                    Теги автоматически приводятся к нижнему регистру.
+                                    {{ _('castle_form.tags_hint') }}
                                 </small>
                             </div>
                         </div>
@@ -80,15 +78,15 @@
 
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i>
-                        <strong>Целевая позиция:</strong> {{ target_pos }} (задано в глобальных настройках)
+                        <strong>{{ _('castle_form.target_info1') }}:</strong> {{ _('castle_form.target_info2', pos=target_pos) }}
                     </div>
 
                     <div class="d-flex justify-content-between">
                         <a href="{{ url_for('castles') }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Назад
+                            <i class="fas fa-arrow-left"></i> {{ _('castle_form.back') }}
                         </a>
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Сохранить
+                            <i class="fas fa-save"></i> {{ _('castle_form.save') }}
                         </button>
                     </div>
                 </form>
@@ -141,11 +139,11 @@
         if (currentTags.length >= 5) {
             addBtn.disabled = true;
             tagInput.disabled = true;
-            tagInput.placeholder = 'Достигнут лимит тегов (5)';
+            tagInput.placeholder = '{{ _("castle_form.tag_limit_reached") }}';
         } else {
             addBtn.disabled = false;
             tagInput.disabled = false;
-            tagInput.placeholder = 'Введите тег (макс. 30 символов)';
+            tagInput.placeholder = '{{ _("castle_form.tag_placeholder_detailed") }}';
         }
     }
 
@@ -160,23 +158,23 @@
         let tag = input.value.trim().toLowerCase();
 
         if (!tag) {
-            showTagNotification('Введите тег', 'warning');
+            showTagNotification('{{ _("castle_form.tag_placeholder") }}', 'warning');
             return;
         }
 
         if (tag.length > 30) {
-            showTagNotification('Тег не может быть длиннее 30 символов', 'danger');
+            showTagNotification('{{ _("castle_form.tag_name_size_reached") }}', 'danger');
             return;
         }
 
         if (currentTags.includes(tag)) {
-            showTagNotification('Такой тег уже добавлен', 'warning');
+            showTagNotification('{{ _("castle_form.tag_already_exists") }}', 'warning');
             input.value = '';
             return;
         }
 
         if (currentTags.length >= 5) {
-            showTagNotification('Достигнут лимит тегов (5)', 'danger');
+            showTagNotification('{{ _("castle_form.tag_limit_reached") }}', 'danger');
             return;
         }
 
@@ -257,7 +255,7 @@
             col.innerHTML = `
                 <div class="card h-100 position-card">
                     <div class="card-body p-2 text-center">
-                        <label class="form-label fw-bold small mb-2">Ячейка ${i+1}</label>
+                        <label class="form-label fw-bold small mb-2">{{ _('castle_form.cell') }} ${i+1}</label>
                         <div class="d-flex justify-content-center align-items-center gap-1 mb-2">
                             <button type="button" class="btn btn-sm btn-outline-danger px-2" onclick="adjustPosition(${i}, -1)">
                                 <i class="fas fa-minus fa-xs"></i>
@@ -314,10 +312,10 @@
             <div class="card-header bg-light py-2">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">
-                        <i class="fas fa-cube"></i> Ячейка ${i}
+                        <i class="fas fa-cube"></i> {{ _('castle_form.cell') }} ${i}
                     </h6>
                     <button type="button" class="btn btn-sm btn-success" onclick="addDependency(${i})">
-                        <i class="fas fa-plus"></i> Добавить
+                        <i class="fas fa-plus"></i> {{ _('castle_form.add_dependency') }}
                     </button>
                 </div>
             </div>
@@ -331,7 +329,11 @@
             if (!depsContainer) return;
 
             if (Object.keys(deps).length === 0) {
-                depsContainer.innerHTML = '<div class="text-muted text-center py-1 small">Нет зависимостей</div>';
+                depsContainer.innerHTML = `
+                    <div class="text-muted text-center py-1 small">
+                    {{ _('castle_form.no_dependencies') }}
+                    </div>
+                `;
             }
 
             for (const [depCell, sign] of Object.entries(deps)) {
@@ -344,7 +346,7 @@
         const container = document.getElementById(`deps-${sourceCell}`);
         if (!container) return;
 
-        if (container.innerHTML.includes('Нет зависимостей')) {
+        if (container.innerHTML.includes('{{ _("castle_form.no_dependencies") }}')) {
             container.innerHTML = '';
         }
 
@@ -362,8 +364,8 @@
             </div>
             <div class="col-4">
                 <select class="form-select form-select-sm dep-sign" data-source="${sourceCell}" data-row="${rowId}">
-                    <option value="+" ${sign === '+' ? 'selected' : ''}>➕ туда же</option>
-                    <option value="-" ${sign === '-' ? 'selected' : ''}>➖ противоположно</option>
+                    <option value="+" ${sign === '+' ? 'selected' : ''}>{{ _('castle_form.same_direction_short') }}</option>
+                    <option value="-" ${sign === '-' ? 'selected' : ''}>{{ _('castle_form.opposite_direction_short') }}</option>
                 </select>
             </div>
             <div class="col-3">
@@ -424,13 +426,13 @@
 
         // Добавляем пустую опцию-заглушку ТОЛЬКО для новых зависимостей (когда selectedValue === null)
         if (selectedValue === null || selectedValue === undefined) {
-            options += `<option value="" selected disabled style="color: #6c757d; font-style: italic;">— Выберите ячейку —</option>`;
+            options += `<option value="" selected disabled style="color: #6c757d; font-style: italic;">— {{ _('castle_form.select_cell') }} —</option>`;
         }
 
         for (let i = 1; i <= currentCells; i++) {
             if (i !== sourceCell) {
                 const selected = (selectedValue === i) ? 'selected' : '';
-                options += `<option value="${i}" ${selected}>Ячейка ${i}</option>`;
+                options += `<option value="${i}" ${selected}>{{ _('castle_form.cell') }} ${i}</option>`;
             }
         }
         return options;
@@ -451,7 +453,7 @@
 
             const container = document.getElementById(`deps-${sourceCell}`);
             if (container && container.children.length === 0) {
-                container.innerHTML = '<div class="text-muted text-center py-1 small">Нет зависимостей</div>';
+                container.innerHTML = '<div class="text-muted text-center py-1 small">{{ _("castle_form.no_dependencies") }}</div>';
             }
         }
     }

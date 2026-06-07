@@ -10,6 +10,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 
 from cracker import CastleCracker
 from database import Database
+from localization import localization
 
 
 # Функция для получения правильного пути к файлам
@@ -30,6 +31,9 @@ app = Flask(__name__, template_folder=template_dir)
 app.secret_key = 'castle_cracker_secret_key_2024'
 db = Database('lockpicker.db')
 
+# Инициализация локализации
+localization.init_app(app)
+
 # Словарь для хранения активных процессов автоматизации
 active_automations = {}
 automation_statuses = {}
@@ -42,7 +46,11 @@ class Config:
 
 @app.context_processor
 def utility_processor():
-    return dict(enumerate=enumerate)
+    return {
+        'enumerate': enumerate,
+        '_': localization.gettext,
+        'current_lang': localization.get_language
+    }
 
 
 @app.route('/')
@@ -51,6 +59,16 @@ def index():
     stats = db.get_stats()
     settings = db.get_all_settings()
     return render_template('index.html', stats=stats, settings=settings)
+
+
+@app.route('/set-language/<lang>')
+def set_language(lang):
+    """Переключение языка"""
+    if localization.set_language(lang):
+        resp = make_response(redirect(request.referrer or url_for('index')))
+        resp.set_cookie('language', lang, max_age=31536000)  # 1 год
+        return resp
+    return redirect(request.referrer or url_for('index'))
 
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -753,4 +771,4 @@ if __name__ == '__main__':
     print("🏰 Gothic1 Remake Lockpicker запущен!")
     print("📁 База данных: lockpicker.db")
     print("🌐 http://localhost:5000")
-    app.run(port=5000)
+    app.run(port=5000, debug=True)

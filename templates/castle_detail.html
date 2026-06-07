@@ -13,14 +13,14 @@
                 </h4>
                 <div class="d-flex gap-2" style="flex-shrink: 0;">
                     <a href="{{ url_for('export_castle', castle_id=castle.id) }}" class="btn btn-sm btn-info">
-                        <i class="fas fa-file-export"></i> Экспорт
+                        <i class="fas fa-file-export"></i> {{ _('castle_detail.export') }}
                     </a>
                     <a href="{{ url_for('edit_castle', castle_id=castle.id) }}" class="btn btn-sm btn-warning">
-                        <i class="fas fa-edit"></i> Редактировать
+                        <i class="fas fa-edit"></i> {{ _('castle_detail.edit') }}
                     </a>
-                    <form action="{{ url_for('delete_castle', castle_id=castle.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Удалить замок?');">
+                    <form action="{{ url_for('delete_castle', castle_id=castle.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('{{ _("castle_detail.delete_lock", name=castle.name) }}');">
                         <button type="submit" class="btn btn-sm btn-danger">
-                            <i class="fas fa-trash"></i> Удалить
+                            <i class="fas fa-trash"></i> {{ _('castle_detail.delete') }}
                         </button>
                     </form>
                 </div>
@@ -28,14 +28,14 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <h5>📊 Характеристики</h5>
+                        <h5>📊 {{ _('castle_detail.characteristics') }}</h5>
                         <table class="table table-bordered">
                             <tr>
-                                <th>Количество ячеек</th>
+                                <th>{{ _('castle_detail.cells') }}</th>
                                 <td>{{ castle.cells }}</td>
                             </tr>
                             <tr>
-                                <th>Стартовые позиции</th>
+                                <th>{{ _('castle_detail.start_positions') }}</th>
                                 <td>
                                     {% for pos in castle.start_positions %}
                                     <span class="position-indicator position-{{ pos }}">{{ pos }}</span>
@@ -43,7 +43,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <th>Целевое состояние</th>
+                                <th>{{ _('castle_detail.target_state') }}</th>
                                 <td>
                                     {% set target_pos = castle.settings.get('target_position', {}).get('value', '4')|int %}
                                     {% for i in range(castle.cells) %}
@@ -52,18 +52,18 @@
                                 </td>
                             </tr>
                             <tr>
-                                <th>Статус</th>
+                                <th>{{ _('castle_detail.status') }}</th>
                                 <td>
                                     {% if castle.has_solution %}
-                                    <span class="badge bg-success">Решаемый</span>
-                                    <span class="badge bg-info">{{ castle.solution_length }} ходов</span>
+                                    <span class="badge bg-success">{{ _('castle_detail.solvable') }}</span>
+                                    <span class="badge bg-info">{{ _('castle_detail.solution_length', count=castle.solution_length) }}</span>
                                     {% else %}
-                                    <span class="badge bg-danger">Нерешаемый</span>
+                                    <span class="badge bg-danger">{{ _('castle_detail.unsolvable') }}</span>
                                     {% endif %}
                                 </td>
                             </tr>
                             <tr>
-                                <th>Tags</th>
+                                <th>{{ _('castle_detail.tags') }}</th>
                                 <td>
                                     {% if castle.tags and castle.tags|length > 0 %}
                                     <div class="mt-2 d-flex flex-wrap gap-1">
@@ -81,27 +81,26 @@
                         {% if not castle.has_solution %}
                         <div class="alert alert-warning mt-3">
                             <i class="fas fa-exclamation-triangle"></i>
-                            <strong>Внимание!</strong> Для этого замка не найдено решение.
+                            <strong>{{ _('castle_detail.warning') }}</strong> {{ _('castle_detail.unsolvable_message') }}.
                             {% set positions_per_cell = (castle.settings.get('max_position', {}).get('value', '7')|int -
                             castle.settings.get('min_position', {}).get('value', '1')|int + 1) %}
                             {% set total_states = positions_per_cell ** castle.cells %}
                             {% if total_states > 500000 %}
-                            <br>⚠️ Замок имеет <strong>{{ "{:,}".format(total_states) }}</strong> возможных состояний,
-                            что может сделать поиск решения очень долгим.
+                            <br>⚠️ {{ _('castle_detail.lock_contains') }} <strong>{{ "{:,}".format(total_states) }}</strong> {{ _('castle_detail.to_many_states') }}.
                             {% endif %}
                         </div>
                         {% endif %}
                     </div>
 
                     <div class="col-md-6">
-                        <h5>🎯 Визуализация старта</h5>
+                        <h5>🎯 {{ _('castle_detail.visualization') }}</h5>
                         <div class="border rounded p-3 bg-light">
                             {% set min_pos = castle.settings.get('min_position', {}).get('value', '1')|int %}
                             {% set max_pos = castle.settings.get('max_position', {}).get('value', '7')|int %}
 
                             {% for i, pos in enumerate(castle.start_positions) %}
                             <div class="mb-3">
-                                <strong>Ячейка {{ i+1 }}:</strong>
+                                <strong>{{ _('castle_detail.cell') }} {{ i+1 }}:</strong>
                                 <div class="d-flex flex-wrap align-items-center mt-2">
                                     {% for p in range(min_pos, max_pos + 1) %}
                                     {% if p == pos %}
@@ -121,31 +120,31 @@
                     </div>
                 </div>
 
-                <h5 class="mt-4">🔗 Зависимости ячеек</h5>
+                <h5 class="mt-4">🔗 {{ _('castle_detail.dependencies') }}</h5>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead class="table-dark">
                         <tr>
-                            <th>Ячейка</th>
-                            <th>Влияет на</th>
+                            <th>{{ _('castle_detail.cell') }}</th>
+                            <th>{{ _('castle_detail.affects') }}</th>
                         </tr>
                         </thead>
                         <tbody>
                         {% for cell in range(1, castle.cells + 1) %}
                         <tr>
-                            <td class="fw-bold">Ячейка {{ cell }}</td>
+                            <td class="fw-bold">{{ _('castle_detail.cell') }} {{ cell }}</td>
                             <td>
                                 {% set deps = castle.dependencies.get(cell|string, {}) %}
                                 {% if deps %}
                                 {% for dep_cell, sign in deps.items() %}
                                 <span class="dependency-badge dependency-{% if sign == '+' %}plus{% else %}minus{% endif %} me-2">
                                             <i class="fas fa-arrow-{% if sign == '+' %}right{% else %}left{% endif %}"></i>
-                                            ячейка {{ dep_cell }}
-                                            <small>({% if sign == '+' %}туда же{% else %}противоположно{% endif %})</small>
+                                            {{ _('castle_detail.cell_lower') }} {{ dep_cell }}
+                                            <small>({% if sign == '+' %}{{ _('castle_detail.same_direction') }}{% else %}{{ _('castle_detail.opposite_direction') }}{% endif %})</small>
                                         </span>
                                 {% endfor %}
                                 {% else %}
-                                <span class="text-muted">нет зависимостей</span>
+                                <span class="text-muted">{{ _('castle_detail.no_dependencies') }}</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -157,18 +156,18 @@
                 <div class="mt-4 text-center">
                     {% if castle.has_solution %}
                     <a href="{{ url_for('solve_castle', castle_id=castle.id) }}" class="btn btn-success btn-lg">
-                        <i class="fas fa-key"></i> Взломать замок!
+                        <i class="fas fa-key"></i> {{ _('castle_detail.crack') }}
                     </a>
                     {% else %}
                     <button class="btn btn-secondary btn-lg" disabled>
-                        <i class="fas fa-ban"></i> Замок нерешаем
+                        <i class="fas fa-ban"></i> {{ _('castle_detail.lock_unsolvable') }}
                     </button>
                     {% endif %}
                 </div>
             </div>
             <div class="card-footer">
                 <a href="{{ url_for('castles') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Назад к списку
+                    <i class="fas fa-arrow-left"></i> {{ _('castle_detail.back_to_list') }}
                 </a>
             </div>
         </div>
