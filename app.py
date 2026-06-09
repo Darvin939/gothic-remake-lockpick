@@ -771,4 +771,4 @@ if __name__ == '__main__':
     print("🏰 Gothic1 Remake Lockpicker запущен!")
     print("📁 База данных: lockpicker.db")
     print("🌐 http://localhost:5000")
-    app.run(port=5000, debug=True)
+    app.run(port=5000)
