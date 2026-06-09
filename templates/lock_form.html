@@ -10,54 +10,54 @@
                 <h4><i class="fas fa-edit"></i> {{ title }}</h4>
             </div>
             <div class="card-body">
-                <form method="POST" id="castleForm">
+                <form method="POST" id="lockForm">
                     <div class="mb-3">
-                        <label for="name" class="form-label">{{ _('castle_form.name') }} *</label>
+                        <label for="name" class="form-label">{{ _('lock_form.name') }} *</label>
                         <input type="text" class="form-control" id="name" name="name" required
-                               value="{{ castle.name if castle else '' }}"
+                               value="{{ lock.name if lock else '' }}"
                                pattern=".*\S.*"
                                maxlength="100"
-                               title="{{ _('castle_form.name_hint') }}"
+                               title="{{ _('lock_form.name_hint') }}"
                                onblur="this.value = this.value.trim();">
-                        <small class="text-muted">{{ _('castle_form.name_hint') }}</small>
+                        <small class="text-muted">{{ _('lock_form.name_hint') }}</small>
                     </div>
 
                     <div class="mb-3">
                         <label for="cells" class="form-label">
-                            {{ _('castle_form.cells', min=min_cells, max=max_cells) }} *
+                            {{ _('lock_form.cells', min=min_cells, max=max_cells) }} *
                         </label>
                         <input type="number" class="form-control" id="cells" name="cells"
                                min="{{ min_cells }}" max="{{ max_cells }}" required
-                               value="{{ castle.cells if castle else min_cells }}"
+                               value="{{ lock.cells if lock else min_cells }}"
                                onchange="updateCells()">
-                        <small class="text-muted">{{ _('castle_form.cells_hint', min=min_cells, max=max_cells) }}</small>
+                        <small class="text-muted">{{ _('lock_form.cells_hint', min=min_cells, max=max_cells) }}</small>
                     </div>
 
                     <!-- Стартовые позиции -->
                     <div class="mb-4">
                         <label class="form-label h5">
-                            🎯 {{ _('castle_form.start_positions') }}
+                            🎯 {{ _('lock_form.start_positions') }}
                         </label>
                         <div id="startPositionsContainer" class="row g-2"></div>
                     </div>
 
                     <!-- Зависимости (табличный вид) -->
                     <div class="mb-4">
-                        <label class="form-label h5">🔗 {{ _('castle_form.dependencies') }}</label>
+                        <label class="form-label h5">🔗 {{ _('lock_form.dependencies') }}</label>
                         <p class="text-muted small">
                             <i class="fas fa-info-circle"></i>
-                            {{ _('castle_form.dependencies_hint') }}
+                            {{ _('lock_form.dependencies_hint') }}
                         </p>
                         <div class="table-responsive">
                             <table class="table table-bordered table-hover dependencies-table">
                                 <thead class="table-secondary">
                                 <tr>
-                                    <th rowspan="2" style="text-align: center; width: 120px">{{ _('castle_form.cell') }}</th>
-                                    <th colspan="13" style="text-align: center;">{{ _('castle_form.target_cell') }}</th>
+                                    <th rowspan="2" style="text-align: center; width: 120px">{{ _('lock_form.cell') }}</th>
+                                    <th colspan="13" style="text-align: center;">{{ _('lock_form.target_cell') }}</th>
                                 </tr>
                                 <tr>
                                     {% for j in range(1, max_cells + 1) %}
-                                    <th class="text-center dependency-cell-header" data-cell="{{ j }}" style="display: none;">{{ _('castle_form.cell') }} {{ j }}</th>
+                                    <th class="text-center dependency-cell-header" data-cell="{{ j }}" style="display: none;">{{ _('lock_form.cell') }} {{ j }}</th>
                                     {% endfor %}
                                 </tr>
                                 </thead>
@@ -71,22 +71,22 @@
                     <!-- Теги -->
                     <div class="mb-4">
                         <label class="form-label h5">
-                            <i class="fas fa-tags"></i> {{ _('castle_form.tags') }}
+                            <i class="fas fa-tags"></i> {{ _('lock_form.tags') }}
                         </label>
                         <div class="card">
                             <div class="card-body">
                                 <div id="tagsContainer" class="d-flex flex-wrap gap-2 mb-3"></div>
                                 <div class="input-group">
                                     <input type="text" class="form-control" id="tagInput"
-                                           placeholder="{{ _('castle_form.tag_placeholder_detailed') }}"
+                                           placeholder="{{ _('lock_form.tag_placeholder_detailed') }}"
                                            maxlength="30">
                                     <button class="btn btn-outline-primary" type="button" id="addTagBtn">
-                                        <i class="fas fa-plus"></i> {{ _('castle_form.add_tag') }}
+                                        <i class="fas fa-plus"></i> {{ _('lock_form.add_tag') }}
                                     </button>
                                 </div>
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle"></i>
-                                    {{ _('castle_form.tags_hint') }}
+                                    {{ _('lock_form.tags_hint') }}
                                 </small>
                             </div>
                         </div>
@@ -94,15 +94,21 @@
 
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i>
-                        <strong>{{ _('castle_form.target_info1') }}:</strong> {{ _('castle_form.target_info2', pos=target_pos) }}
+                        <strong>{{ _('lock_form.target_info1') }}:</strong> {{ _('lock_form.target_info2', pos=target_pos) }}
                     </div>
 
                     <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('castle_detail', castle_id=castle.id) }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> {{ _('castle_form.back') }}
+                        {% if not lock.id %}
+                        <a href="{{ url_for('locks') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> {{ _('lock_form.back') }}
                         </a>
+                        {% else %}
+                        <a href="{{ url_for('lock_detail', lock_id=lock.id) }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> {{ _('lock_form.back') }}
+                        </a>
+                        {% endif %}
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> {{ _('castle_form.save') }}
+                            <i class="fas fa-save"></i> {{ _('lock_form.save') }}
                         </button>
                     </div>
                 </form>
@@ -114,21 +120,21 @@
 
 {% block scripts %}
 <script>
-    let currentCells = {{ castle.cells if castle else min_cells }};
+    let currentCells = {{ lock.cells if lock else min_cells }};
     let dependenciesData = {};
     let startPositions = [];
     let currentTags = [];
 
-    {% if castle and castle.tags %}
-    currentTags = {{ castle.tags | tojson }};
+    {% if lock and lock.tags %}
+    currentTags = {{ lock.tags | tojson }};
     {% endif %}
 
-    {% if castle and castle.dependencies %}
-    dependenciesData = {{ castle.dependencies | tojson }};
+    {% if lock and lock.dependencies %}
+    dependenciesData = {{ lock.dependencies | tojson }};
     {% endif %}
 
-    {% if castle and castle.start_positions %}
-    startPositions = {{ castle.start_positions | tojson }};
+    {% if lock and lock.start_positions %}
+    startPositions = {{ lock.start_positions | tojson }};
     {% endif %}
 
     const MIN_POS = {{ min_pos }};
@@ -156,11 +162,11 @@
         if (currentTags.length >= 5) {
             addBtn.disabled = true;
             tagInput.disabled = true;
-            tagInput.placeholder = '{{ _("castle_form.tag_limit_reached") }}';
+            tagInput.placeholder = '{{ _("lock_form.tag_limit_reached") }}';
         } else {
             addBtn.disabled = false;
             tagInput.disabled = false;
-            tagInput.placeholder = '{{ _("castle_form.tag_placeholder_detailed") }}';
+            tagInput.placeholder = '{{ _("lock_form.tag_placeholder_detailed") }}';
         }
     }
 
@@ -174,20 +180,20 @@
         const input = document.getElementById('tagInput');
         let tag = input.value.trim().toLowerCase();
         if (!tag) {
-            showTagNotification('{{ _("castle_form.tag_placeholder") }}', 'warning');
+            showTagNotification('{{ _("lock_form.tag_placeholder") }}', 'warning');
             return;
         }
         if (tag.length > 30) {
-            showTagNotification('{{ _("castle_form.tag_name_size_reached") }}', 'danger');
+            showTagNotification('{{ _("lock_form.tag_name_size_reached") }}', 'danger');
             return;
         }
         if (currentTags.includes(tag)) {
-            showTagNotification('{{ _("castle_form.tag_already_exists") }}', 'warning');
+            showTagNotification('{{ _("lock_form.tag_already_exists") }}', 'warning');
             input.value = '';
             return;
         }
         if (currentTags.length >= 5) {
-            showTagNotification('{{ _("castle_form.tag_limit_reached") }}', 'danger');
+            showTagNotification('{{ _("lock_form.tag_limit_reached") }}', 'danger');
             return;
         }
         currentTags.push(tag);
@@ -224,7 +230,7 @@
             col.innerHTML = `
                 <div class="card h-100 position-card">
                     <div class="card-body p-2 text-center">
-                        <label class="form-label fw-bold small mb-2">{{ _('castle_form.cell') }} ${i+1}</label>
+                        <label class="form-label fw-bold small mb-2">{{ _('lock_form.cell') }} ${i+1}</label>
                         <div class="d-flex justify-content-center align-items-center gap-1 mb-2">
                             <button type="button" class="btn btn-sm btn-outline-danger px-2" onclick="adjustPosition(${i}, -1)">
                                 <i class="fas fa-minus fa-xs"></i>
@@ -277,7 +283,7 @@
             // Ячейка с названием строки
             const cellLabel = document.createElement('td');
             cellLabel.className = 'fw-bold text-center bg-light';
-            cellLabel.textContent = `{{ _('castle_form.cell') }} ${i}`;
+            cellLabel.textContent = `{{ _('lock_form.cell') }} ${i}`;
             row.appendChild(cellLabel);
 
             // Для каждой возможной целевой ячейки
@@ -368,7 +374,7 @@
     }
 
     // ==================== ПОДГОТОВКА К ОТПРАВКЕ ====================
-    document.getElementById('castleForm').addEventListener('submit', function(e) {
+    document.getElementById('lockForm').addEventListener('submit', function(e) {
         // Собираем стартовые позиции
         const startPositionsArray = [];
         for (let i = 0; i < currentCells; i++) {
@@ -398,10 +404,10 @@
 
     // ==================== ИНИЦИАЛИЗАЦИЯ ====================
     document.addEventListener('DOMContentLoaded', function() {
-        {% if castle %}
+        {% if lock %}
         // Загружаем данные существующего замка
-        startPositions = {{ castle.start_positions | tojson }};
-        dependenciesData = {{ castle.dependencies | tojson }};
+        startPositions = {{ lock.start_positions | tojson }};
+        dependenciesData = {{ lock.dependencies | tojson }};
         {% else %}
         // Данные по умолчанию для нового замка
         startPositions = [];

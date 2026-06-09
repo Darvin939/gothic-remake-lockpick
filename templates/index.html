@@ -20,7 +20,7 @@
         <div class="card text-white bg-primary mb-3 text-center">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="fas fa-castle"></i> {{ _('index.total_castles') }}
+                    <i class="fas fa-lock"></i> {{ _('index.total_locks') }}
                 </h5>
                 <p class="card-text display-4">{{ stats.total }}</p>
             </div>
@@ -74,11 +74,11 @@
 <div class="row mt-2">
     <div class="col-md-8 mx-auto">
         <div class="d-flex justify-content-center gap-3">
-            <a href="{{ url_for('castles') }}" class="btn btn-lg btn-primary px-4">
-                <i class="fas fa-list"></i> {{ _('index.manage_castles') }}
+            <a href="{{ url_for('locks') }}" class="btn btn-lg btn-primary px-4">
+                <i class="fas fa-list"></i> {{ _('index.manage_locks') }}
             </a>
-            <a href="{{ url_for('new_castle') }}" class="btn btn-lg btn-success px-4">
-                <i class="fas fa-plus"></i> {{ _('index.create_castle') }}
+            <a href="{{ url_for('new_lock') }}" class="btn btn-lg btn-success px-4">
+                <i class="fas fa-plus"></i> {{ _('index.create_lock') }}
             </a>
         </div>
     </div>

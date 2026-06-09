@@ -8,7 +8,7 @@ from datetime import datetime
 import pyautogui
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, make_response
 
-from cracker import CastleCracker
+from cracker import LockCracker
 from database import Database
 from localization import localization
 
@@ -28,7 +28,7 @@ def resource_path(relative_path):
 template_dir = resource_path('templates')
 app = Flask(__name__, template_folder=template_dir)
 
-app.secret_key = 'castle_cracker_secret_key_2024'
+app.secret_key = 'lock_cracker_secret_key_2024'
 db = Database('lockpicker.db')
 
 # Инициализация локализации
@@ -118,8 +118,8 @@ def settings():
     return render_template('settings.html', settings=settings)
 
 
-@app.route('/castles')
-def castles():
+@app.route('/locks')
+def locks():
     """Список всех замков с поиском, фильтрацией по тегам и пагинацией"""
     search = request.args.get('search', '').strip()
     selected_tags_str = request.args.get('selected_tags', '')
@@ -129,7 +129,7 @@ def castles():
     per_page = request.args.get('per_page', 12, type=int)
 
     per_page = min(per_page, 24)
-    castles_list, total = db.get_all_castles(
+    locks_list, total = db.get_all_locks(
         search=search if search else None,
         tag_filters=selected_tags if selected_tags else None,
         page=page,
@@ -143,8 +143,8 @@ def castles():
     settings = db.get_all_settings()
     popular_tags = db.get_all_tags(limit=50)
 
-    return render_template('castles.html',
-                           castles=castles_list,
+    return render_template('locks.html',
+                           locks=locks_list,
                            search=search,
                            selected_tags=selected_tags,
                            popular_tags=popular_tags,
@@ -156,8 +156,8 @@ def castles():
                            settings=settings)
 
 
-@app.route('/castle/new', methods=['GET', 'POST'])
-def new_castle():
+@app.route('/lock/new', methods=['GET', 'POST'])
+def new_lock():
     """Создание нового замка"""
     settings = db.get_all_settings()
     min_cells = int(settings.get('min_cells', {}).get('value', 3))
@@ -172,25 +172,25 @@ def new_castle():
             name = request.form['name'].strip()
             if not name:
                 flash('Название замка не может быть пустым', 'danger')
-                return redirect(url_for('new_castle'))
+                return redirect(url_for('new_lock'))
 
             if len(name) > 100:
                 flash('Название замка не может быть длиннее 100 символов', 'danger')
-                return redirect(url_for('new_castle'))
+                return redirect(url_for('new_lock'))
 
             # Проверка уникальности имени
-            if db.check_castle_name_exists(name):
+            if db.check_lock_name_exists(name):
                 flash(f'Замок с именем "{name}" уже существует', 'danger')
-                return redirect(url_for('new_castle'))
+                return redirect(url_for('new_lock'))
 
             # Получаем теги
             tags = request.form.getlist('tags')
             tags = [t.strip().lower() for t in tags if t.strip()]
             if len(tags) > 5:
                 flash('Максимум 5 тегов на замок', 'danger')
-                return redirect(url_for('new_castle'))
+                return redirect(url_for('new_lock'))
 
-            castle_data = {
+            lock_data = {
                 'name': name,
                 'cells': int(request.form['cells']),
                 'start_positions': json.loads(request.form['start_positions']),
@@ -199,66 +199,66 @@ def new_castle():
             }
 
             # валидация
-            if not (min_cells <= castle_data['cells'] <= max_cells):
+            if not (min_cells <= lock_data['cells'] <= max_cells):
                 flash(f'Количество ячеек должно быть от {min_cells} до {max_cells}', 'danger')
-                return redirect(url_for('new_castle'))
+                return redirect(url_for('new_lock'))
 
-            if len(castle_data['start_positions']) != castle_data['cells']:
-                flash(f'Должно быть {castle_data["cells"]} стартовых позиций', 'danger')
-                return redirect(url_for('new_castle'))
+            if len(lock_data['start_positions']) != lock_data['cells']:
+                flash(f'Должно быть {lock_data["cells"]} стартовых позиций', 'danger')
+                return redirect(url_for('new_lock'))
 
             # Проверка стартовых позиций
-            for pos in castle_data['start_positions']:
+            for pos in lock_data['start_positions']:
                 if not (min_pos <= pos <= max_pos):
                     flash(f'Позиция {pos} вне допустимого диапазона ({min_pos}-{max_pos})', 'danger')
-                    return redirect(url_for('new_castle'))
+                    return redirect(url_for('new_lock'))
 
             # проверяем зависимости
-            for cell, deps in castle_data['dependencies'].items():
+            for cell, deps in lock_data['dependencies'].items():
                 cell_num = int(cell)
-                if cell_num < 1 or cell_num > castle_data['cells']:
+                if cell_num < 1 or cell_num > lock_data['cells']:
                     flash(f'Ячейка {cell_num} вне диапазона', 'danger')
-                    return redirect(url_for('new_castle'))
+                    return redirect(url_for('new_lock'))
 
                 for dep_cell, sign in deps.items():
                     dep_num = int(dep_cell)
-                    if dep_num < 1 or dep_num > castle_data['cells']:
+                    if dep_num < 1 or dep_num > lock_data['cells']:
                         flash(f'Зависимая ячейка {dep_num} вне диапазона', 'danger')
-                        return redirect(url_for('new_castle'))
+                        return redirect(url_for('new_lock'))
                     if sign not in ['+', '-']:
                         flash(f'Неверный знак {sign} для зависимости', 'danger')
-                        return redirect(url_for('new_castle'))
+                        return redirect(url_for('new_lock'))
 
             # пробуем найти решение
-            cracker = CastleCracker(castle_data)
+            cracker = LockCracker(lock_data)
             solution = cracker.solve()
-            castle_data['has_solution'] = solution is not None
-            castle_data['solution_length'] = len(solution) if solution else 0
+            lock_data['has_solution'] = solution is not None
+            lock_data['solution_length'] = len(solution) if solution else 0
 
-            castle_id = db.create_castle_with_tags(castle_data, tags)
+            lock_id = db.create_lock_with_tags(lock_data, tags)
 
             flash(f'Замок "{name}" успешно создан!', 'success')
-            return redirect(url_for('castle_detail', castle_id=castle_id))
+            return redirect(url_for('lock_detail', lock_id=lock_id))
 
         except Exception as e:
             flash(f'Ошибка: {str(e)}', 'danger')
-            return redirect(url_for('new_castle'))
+            return redirect(url_for('new_lock'))
 
-    return render_template('castle_form.html', title='Создать замок', castle=None,
+    return render_template('lock_form.html', title='Создать замок', lock=None,
                            settings=settings, min_cells=min_cells, max_cells=max_cells,
                            min_pos=min_pos, max_pos=max_pos, target_pos=target_pos)
 
 
-@app.route('/castle/<int:castle_id>/edit', methods=['GET', 'POST'])
-def edit_castle(castle_id):
+@app.route('/lock/<int:lock_id>/edit', methods=['GET', 'POST'])
+def edit_lock(lock_id):
     """Редактирование замка"""
-    castle = db.get_castle(castle_id)
-    if not castle:
+    lock = db.get_lock(lock_id)
+    if not lock:
         flash('Замок не найден', 'danger')
-        return redirect(url_for('castles'))
+        return redirect(url_for('locks'))
 
     # Загружаем теги замка
-    castle['tags'] = db.get_castle_tags(castle_id)
+    lock['tags'] = db.get_lock_tags(lock_id)
 
     settings = db.get_all_settings()
     min_cells = int(settings.get('min_cells', {}).get('value', 3))
@@ -271,24 +271,24 @@ def edit_castle(castle_id):
             name = request.form['name'].strip()
             if not name:
                 flash('Название замка не может быть пустым', 'danger')
-                return redirect(url_for('edit_castle', castle_id=castle_id))
+                return redirect(url_for('edit_lock', lock_id=lock_id))
 
             if len(name) > 100:
                 flash('Название замка не может быть длиннее 100 символов', 'danger')
-                return redirect(url_for('edit_castle', castle_id=castle_id))
+                return redirect(url_for('edit_lock', lock_id=lock_id))
 
-            if db.check_castle_name_exists(name, exclude_id=castle_id):
+            if db.check_lock_name_exists(name, exclude_id=lock_id):
                 flash(f'Замок с именем "{name}" уже существует', 'danger')
-                return redirect(url_for('edit_castle', castle_id=castle_id))
+                return redirect(url_for('edit_lock', lock_id=lock_id))
 
             # Получаем теги
             tags = request.form.getlist('tags')
             tags = [t.strip().lower() for t in tags if t.strip()]
             if len(tags) > 5:
                 flash('Максимум 5 тегов на замок', 'danger')
-                return redirect(url_for('edit_castle', castle_id=castle_id))
+                return redirect(url_for('edit_lock', lock_id=lock_id))
 
-            castle_data = {
+            lock_data = {
                 'name': name,
                 'cells': int(request.form['cells']),
                 'start_positions': json.loads(request.form['start_positions']),
@@ -297,69 +297,69 @@ def edit_castle(castle_id):
             }
 
             # валидация
-            if not (min_cells <= castle_data['cells'] <= max_cells):
+            if not (min_cells <= lock_data['cells'] <= max_cells):
                 flash(f'Количество ячеек должно быть от {min_cells} до {max_cells}', 'danger')
-                return redirect(url_for('edit_castle', castle_id=castle_id))
+                return redirect(url_for('edit_lock', lock_id=lock_id))
 
-            if len(castle_data['start_positions']) != castle_data['cells']:
-                flash(f'Должно быть {castle_data["cells"]} стартовых позиций', 'danger')
-                return redirect(url_for('edit_castle', castle_id=castle_id))
+            if len(lock_data['start_positions']) != lock_data['cells']:
+                flash(f'Должно быть {lock_data["cells"]} стартовых позиций', 'danger')
+                return redirect(url_for('edit_lock', lock_id=lock_id))
 
             # Проверка стартовых позиций
-            for pos in castle_data['start_positions']:
+            for pos in lock_data['start_positions']:
                 if not (min_pos <= pos <= max_pos):
                     flash(f'Позиция {pos} вне допустимого диапазона ({min_pos}-{max_pos})', 'danger')
-                    return redirect(url_for('edit_castle', castle_id=castle_id))
+                    return redirect(url_for('edit_lock', lock_id=lock_id))
 
             # проверяем решение
-            cracker = CastleCracker(castle_data)
+            cracker = LockCracker(lock_data)
             solution = cracker.solve()
-            castle_data['has_solution'] = solution is not None
-            castle_data['solution_length'] = len(solution) if solution else 0
+            lock_data['has_solution'] = solution is not None
+            lock_data['solution_length'] = len(solution) if solution else 0
 
-            db.update_castle_with_tags(castle_id, castle_data, tags)
+            db.update_lock_with_tags(lock_id, lock_data, tags)
 
             flash(f'Замок "{name}" успешно обновлён!', 'success')
-            return redirect(url_for('castle_detail', castle_id=castle_id))
+            return redirect(url_for('lock_detail', lock_id=lock_id))
 
         except Exception as e:
             flash(f'Ошибка: {str(e)}', 'danger')
-            return redirect(url_for('edit_castle', castle_id=castle_id))
+            return redirect(url_for('edit_lock', lock_id=lock_id))
 
-    return render_template('castle_form.html', title='Редактировать замок', castle=castle,
+    return render_template('lock_form.html', title='Редактировать замок', lock=lock,
                            settings=settings, min_cells=min_cells, max_cells=max_cells,
                            min_pos=min_pos, max_pos=max_pos,
                            target_pos=int(settings.get('target_position', {}).get('value', 4)))
 
 
-@app.route('/castle/<int:castle_id>/delete', methods=['POST'])
-def delete_castle(castle_id):
+@app.route('/lock/<int:lock_id>/delete', methods=['POST'])
+def delete_lock(lock_id):
     """Удаление замка"""
-    db.delete_castle(castle_id)
+    db.delete_lock(lock_id)
     flash('Замок успешно удалён', 'success')
-    return redirect(url_for('castles'))
+    return redirect(url_for('locks'))
 
 
-@app.route('/castle/<int:castle_id>')
-def castle_detail(castle_id):
+@app.route('/lock/<int:lock_id>')
+def lock_detail(lock_id):
     """Детальная страница замка"""
-    castle = db.get_castle(castle_id)
-    if not castle:
+    lock = db.get_lock(lock_id)
+    if not lock:
         flash('Замок не найден', 'danger')
-        return redirect(url_for('castles'))
-    return render_template('castle_detail.html', castle=castle)
+        return redirect(url_for('locks'))
+    return render_template('lock_detail.html', lock=lock)
 
 
-@app.route('/castle/<int:castle_id>/solve')
-def solve_castle(castle_id):
+@app.route('/lock/<int:lock_id>/solve')
+def solve_lock(lock_id):
     """Решение замка"""
-    castle = db.get_castle(castle_id)
-    if not castle:
+    lock = db.get_lock(lock_id)
+    if not lock:
         flash('Замок не найден', 'danger')
-        return redirect(url_for('castles'))
+        return redirect(url_for('locks'))
 
-    cracker = CastleCracker(
-        castle,
+    cracker = LockCracker(
+        lock,
         timeout_seconds=Config.SOLVE_TIMEOUT,
         max_states=Config.SOLVE_MAX_STATES
     )
@@ -367,43 +367,43 @@ def solve_castle(castle_id):
 
     if solution:
         steps = cracker.visualize_solution(solution)
-        return render_template('solve_result.html', castle=castle, solution=solution, steps=steps, enumerate=enumerate)
+        return render_template('solve_result.html', lock=lock, solution=solution, steps=steps, enumerate=enumerate)
     else:
         flash('Решение не найдено! Возможно, замок нерешаем.', 'warning')
-        return redirect(url_for('castle_detail', castle_id=castle_id))
+        return redirect(url_for('lock_detail', lock_id=lock_id))
 
 
-@app.route('/api/castles')
-def api_castles():
+@app.route('/api/locks')
+def api_locks():
     """API для получения списка замков"""
-    castles = db.get_all_castles()
+    locks = db.get_all_locks()
     return jsonify([{
-        'id': castle['id'],
-        'name': castle['name'],
-        'cells': castle['cells'],
-        'has_solution': castle['has_solution'],
-        'solution_length': castle['solution_length']
-    } for castle in castles])
+        'id': lock['id'],
+        'name': lock['name'],
+        'cells': lock['cells'],
+        'has_solution': lock['has_solution'],
+        'solution_length': lock['solution_length']
+    } for lock in locks])
 
 
-@app.route('/castle/<int:castle_id>/export')
-def export_castle(castle_id):
+@app.route('/lock/<int:lock_id>/export')
+def export_lock(lock_id):
     """Экспорт конфигурации замка в JSON с тегами"""
-    castle = db.get_castle(castle_id)
-    if not castle:
+    lock = db.get_lock(lock_id)
+    if not lock:
         flash('Замок не найден', 'danger')
-        return redirect(url_for('castles'))
+        return redirect(url_for('locks'))
 
-    tags = db.get_castle_tags(castle_id)
+    tags = db.get_lock_tags(lock_id)
 
     export_data = {
         'version': '1.0',
         'export_date': datetime.now().isoformat(),
-        'castle': {
-            'name': castle['name'],
-            'cells': castle['cells'],
-            'start_positions': castle['start_positions'],
-            'dependencies': castle['dependencies'],
+        'lock': {
+            'name': lock['name'],
+            'cells': lock['cells'],
+            'start_positions': lock['start_positions'],
+            'dependencies': lock['dependencies'],
             'tags': tags
         }
     }
@@ -411,7 +411,7 @@ def export_castle(castle_id):
     json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
 
     # Используем только ID для имени файла (без кириллицы)
-    filename = f"castle_{castle_id}.json"
+    filename = f"lock_{lock_id}.json"
 
     response = make_response(json_str.encode('utf-8'))
     response.headers['Content-Type'] = 'application/json; charset=utf-8'
@@ -420,35 +420,35 @@ def export_castle(castle_id):
     return response
 
 
-@app.route('/castles/export-all')
-def export_all_castles():
+@app.route('/locks/export-all')
+def export_all_locks():
     """Экспорт всех замков в один JSON файл"""
     try:
         # Получаем список замков (игнорируем общее количество)
-        castles_list, total = db.get_all_castles()
+        locks_list, total = db.get_all_locks()
 
         export_data = {
             'version': '1.0',
             'export_date': datetime.now().isoformat(),
             'total_count': total,
-            'castles': []
+            'locks': []
         }
 
-        for castle in castles_list:
-            tags = db.get_castle_tags(castle['id'])
+        for lock in locks_list:
+            tags = db.get_lock_tags(lock['id'])
 
-            export_data['castles'].append({
-                'name': castle['name'],
-                'cells': castle['cells'],
-                'start_positions': castle['start_positions'],
-                'dependencies': castle['dependencies'],
+            export_data['locks'].append({
+                'name': lock['name'],
+                'cells': lock['cells'],
+                'start_positions': lock['start_positions'],
+                'dependencies': lock['dependencies'],
                 'tags': tags
             })
 
         json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
 
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"castles_export_{timestamp}.json"
+        filename = f"locks_export_{timestamp}.json"
 
         response = make_response(json_str.encode('utf-8'))
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
@@ -459,27 +459,27 @@ def export_all_castles():
 
     except Exception as e:
         flash(f'Ошибка при экспорте: {str(e)}', 'danger')
-        return redirect(url_for('castles'))
+        return redirect(url_for('locks'))
 
 
-@app.route('/castles/import', methods=['GET', 'POST'])
-def import_castles():
+@app.route('/locks/import', methods=['GET', 'POST'])
+def import_locks():
     """Импорт конфигураций замков из JSON"""
     if request.method == 'POST':
         try:
             # Проверяем, есть ли файл
             if 'file' not in request.files:
                 flash('Файл не выбран', 'danger')
-                return redirect(url_for('import_castles'))
+                return redirect(url_for('import_locks'))
 
             file = request.files['file']
             if file.filename == '':
                 flash('Файл не выбран', 'danger')
-                return redirect(url_for('import_castles'))
+                return redirect(url_for('import_locks'))
 
             if not file.filename.endswith('.json'):
                 flash('Поддерживаются только JSON файлы', 'danger')
-                return redirect(url_for('import_castles'))
+                return redirect(url_for('import_locks'))
 
             # Читаем JSON
             content = file.read().decode('utf-8')
@@ -496,36 +496,36 @@ def import_castles():
             errors = []
 
             # Определяем формат (один замок или несколько)
-            if 'castle' in data:
+            if 'lock' in data:
                 # Формат с одним замком
-                castles_to_import = [data['castle']]
-            elif 'castles' in data:
+                locks_to_import = [data['lock']]
+            elif 'locks' in data:
                 # Формат с несколькими замками
-                castles_to_import = data['castles']
+                locks_to_import = data['locks']
             else:
                 # Предполагаем, что это прямой экспорт одного замка
                 if 'name' in data and 'cells' in data:
-                    castles_to_import = [data]
+                    locks_to_import = [data]
                 else:
                     flash('Неверный формат файла', 'danger')
-                    return redirect(url_for('import_castles'))
+                    return redirect(url_for('import_locks'))
 
-            for castle_data in castles_to_import:
+            for lock_data in locks_to_import:
                 try:
                     # Валидация данных
-                    name = castle_data.get('name', '').strip()
+                    name = lock_data.get('name', '').strip()
                     if not name:
                         errors.append(f"Пропущен: нет названия")
                         skipped_count += 1
                         continue
 
-                    cells = int(castle_data.get('cells', 0))
+                    cells = int(lock_data.get('cells', 0))
                     if not (min_cells <= cells <= max_cells):
                         errors.append(f"'{name}': количество ячеек {cells} вне диапазона ({min_cells}-{max_cells})")
                         skipped_count += 1
                         continue
 
-                    start_positions = castle_data.get('start_positions', [])
+                    start_positions = lock_data.get('start_positions', [])
                     if len(start_positions) != cells:
                         errors.append(f"'{name}': неверное количество стартовых позиций")
                         skipped_count += 1
@@ -544,7 +544,7 @@ def import_castles():
                         continue
 
                     # Проверка зависимостей
-                    dependencies = castle_data.get('dependencies', {})
+                    dependencies = lock_data.get('dependencies', {})
                     for cell, deps in dependencies.items():
                         cell_num = int(cell)
                         if cell_num < 1 or cell_num > cells:
@@ -568,13 +568,13 @@ def import_castles():
                         continue
 
                     # Проверяем уникальность имени
-                    if db.check_castle_name_exists(name):
+                    if db.check_lock_name_exists(name):
                         errors.append(f"'{name}': замок с таким именем уже существует")
                         skipped_count += 1
                         continue
 
                     # Создаем замок
-                    new_castle = {
+                    new_lock = {
                         'name': name,
                         'cells': cells,
                         'start_positions': start_positions,
@@ -583,15 +583,15 @@ def import_castles():
                     }
 
                     # Находим решение
-                    cracker = CastleCracker(new_castle)
+                    cracker = LockCracker(new_lock)
                     solution = cracker.solve()
-                    new_castle['has_solution'] = solution is not None
-                    new_castle['solution_length'] = len(solution) if solution else 0
+                    new_lock['has_solution'] = solution is not None
+                    new_lock['solution_length'] = len(solution) if solution else 0
 
-                    if 'tags' in castle_data:
-                        db.create_castle_with_tags(new_castle, castle_data['tags'])
+                    if 'tags' in lock_data:
+                        db.create_lock_with_tags(new_lock, lock_data['tags'])
                     else:
-                        db.create_castle_with_tags(new_castle, [])
+                        db.create_lock_with_tags(new_lock, [])
 
                     imported_count += 1
 
@@ -610,27 +610,27 @@ def import_castles():
                 elif errors:
                     flash(f'• и ещё {len(errors) - 5} ошибок...', 'warning')
 
-            return redirect(url_for('castles'))
+            return redirect(url_for('locks'))
 
         except json.JSONDecodeError as e:
             flash(f'Ошибка парсинга JSON: {str(e)}', 'danger')
-            return redirect(url_for('import_castles'))
+            return redirect(url_for('import_locks'))
         except Exception as e:
             flash(f'Ошибка при импорте: {str(e)}', 'danger')
-            return redirect(url_for('import_castles'))
+            return redirect(url_for('import_locks'))
 
     return render_template('import.html')
 
 
-@app.route('/castle/<int:castle_id>/automate', methods=['POST'])
-def automate_castle(castle_id):
+@app.route('/lock/<int:lock_id>/automate', methods=['POST'])
+def automate_lock(lock_id):
     """Запуск автоматизации (асинхронно)"""
-    castle = db.get_castle(castle_id)
-    if not castle:
+    lock = db.get_lock(lock_id)
+    if not lock:
         return jsonify({'error': 'Замок не найден'}), 404
 
     # Проверяем, не запущена ли уже автоматизация
-    if castle_id in active_automations and active_automations[castle_id].is_alive():
+    if lock_id in active_automations and active_automations[lock_id].is_alive():
         return jsonify({'error': 'Автоматизация уже запущена'}), 400
 
     # Получаем настройки из запроса
@@ -639,7 +639,7 @@ def automate_castle(castle_id):
     delay_between = data.get('delay_between', 0.5)
 
     # Инициализируем статус
-    automation_statuses[castle_id] = {
+    automation_statuses[lock_id] = {
         'status': 'starting',
         'current_step': 0,
         'total_steps': 0,
@@ -650,47 +650,47 @@ def automate_castle(castle_id):
     def run_automation():
         try:
             # Получаем решение
-            automation_statuses[castle_id]['status'] = 'loading'
-            automation_statuses[castle_id]['message'] = 'Поиск решения...'
+            automation_statuses[lock_id]['status'] = 'loading'
+            automation_statuses[lock_id]['message'] = 'Поиск решения...'
 
-            cracker = CastleCracker(castle)
+            cracker = LockCracker(lock)
             solution = cracker.solve()
 
             if not solution:
-                automation_statuses[castle_id]['status'] = 'error'
-                automation_statuses[castle_id]['message'] = 'Решение не найдено'
+                automation_statuses[lock_id]['status'] = 'error'
+                automation_statuses[lock_id]['message'] = 'Решение не найдено'
                 return
 
             total_steps = len(solution)
-            automation_statuses[castle_id]['total_steps'] = total_steps
-            automation_statuses[castle_id]['status'] = 'waiting'
-            automation_statuses[castle_id][
+            automation_statuses[lock_id]['total_steps'] = total_steps
+            automation_statuses[lock_id]['status'] = 'waiting'
+            automation_statuses[lock_id][
                 'message'] = f'Найдено решение ({total_steps} шагов). Ожидание {delay_before} сек...'
 
             # Ждем перед началом
             time.sleep(delay_before)
 
             # Проверка на остановку
-            if not is_automation_active(castle_id):
-                automation_statuses[castle_id]['status'] = 'stopped'
-                automation_statuses[castle_id]['message'] = 'Автоматизация остановлена пользователем'
+            if not is_automation_active(lock_id):
+                automation_statuses[lock_id]['status'] = 'stopped'
+                automation_statuses[lock_id]['message'] = 'Автоматизация остановлена пользователем'
                 return
 
-            automation_statuses[castle_id]['status'] = 'running'
-            automation_statuses[castle_id]['message'] = 'Выполнение автоматизации...'
+            automation_statuses[lock_id]['status'] = 'running'
+            automation_statuses[lock_id]['message'] = 'Выполнение автоматизации...'
 
             # Проходим по каждому шагу решения
             current_cell = 1
             for step_num, (cell, direction) in enumerate(solution, 1):
                 # Проверка на остановку
-                if not is_automation_active(castle_id):
-                    automation_statuses[castle_id]['status'] = 'stopped'
-                    automation_statuses[castle_id][
+                if not is_automation_active(lock_id):
+                    automation_statuses[lock_id]['status'] = 'stopped'
+                    automation_statuses[lock_id][
                         'message'] = f'Автоматизация остановлена на шаге {step_num - 1}/{total_steps}'
                     return
 
-                automation_statuses[castle_id]['current_step'] = step_num
-                automation_statuses[castle_id]['message'] = f'Шаг {step_num}/{total_steps}: ячейка {cell}'
+                automation_statuses[lock_id]['current_step'] = step_num
+                automation_statuses[lock_id]['message'] = f'Шаг {step_num}/{total_steps}: ячейка {cell}'
 
                 # Переключаемся на нужную ячейку (W/S)
                 while current_cell != cell:
@@ -707,12 +707,12 @@ def automate_castle(castle_id):
                 pyautogui.press(direction_key)
                 time.sleep(delay_between)
 
-            automation_statuses[castle_id]['status'] = 'completed'
-            automation_statuses[castle_id]['message'] = f'✅ Автоматизация завершена! Выполнено {total_steps} шагов.'
+            automation_statuses[lock_id]['status'] = 'completed'
+            automation_statuses[lock_id]['message'] = f'✅ Автоматизация завершена! Выполнено {total_steps} шагов.'
 
         except Exception as e:
-            automation_statuses[castle_id]['status'] = 'error'
-            automation_statuses[castle_id]['message'] = f'Ошибка: {str(e)}'
+            automation_statuses[lock_id]['status'] = 'error'
+            automation_statuses[lock_id]['message'] = f'Ошибка: {str(e)}'
         finally:
             # Не удаляем статус сразу, чтобы UI мог прочитать
             pass
@@ -720,51 +720,51 @@ def automate_castle(castle_id):
     # Запускаем поток
     thread = threading.Thread(target=run_automation, daemon=True)
     thread.start()
-    active_automations[castle_id] = thread
+    active_automations[lock_id] = thread
 
     return jsonify({
         'success': True,
         'message': 'Автоматизация запущена',
-        'total_steps': automation_statuses[castle_id].get('total_steps', 0)
+        'total_steps': automation_statuses[lock_id].get('total_steps', 0)
     })
 
 
-@app.route('/castle/<int:castle_id>/automate/status', methods=['GET'])
-def automation_status(castle_id):
+@app.route('/lock/<int:lock_id>/automate/status', methods=['GET'])
+def automation_status(lock_id):
     """Получение статуса автоматизации"""
-    if castle_id in automation_statuses:
-        status = automation_statuses[castle_id].copy()
-        status['active'] = castle_id in active_automations and active_automations[castle_id].is_alive()
+    if lock_id in automation_statuses:
+        status = automation_statuses[lock_id].copy()
+        status['active'] = lock_id in active_automations and active_automations[lock_id].is_alive()
         return jsonify(status)
     return jsonify({'active': False, 'status': 'idle', 'message': 'Нет активной автоматизации'})
 
 
-@app.route('/castle/<int:castle_id>/automate/stop', methods=['POST'])
-def stop_automation(castle_id):
+@app.route('/lock/<int:lock_id>/automate/stop', methods=['POST'])
+def stop_automation(lock_id):
     """Остановка автоматизации"""
-    if castle_id in automation_statuses:
-        automation_statuses[castle_id]['status'] = 'stopping'
-        automation_statuses[castle_id]['message'] = 'Остановка автоматизации...'
+    if lock_id in automation_statuses:
+        automation_statuses[lock_id]['status'] = 'stopping'
+        automation_statuses[lock_id]['message'] = 'Остановка автоматизации...'
 
         # Помечаем для остановки
-        if castle_id in active_automations:
+        if lock_id in active_automations:
             # Ждем завершения потока (максимум 2 секунды)
-            active_automations[castle_id].join(timeout=2)
-            del active_automations[castle_id]
+            active_automations[lock_id].join(timeout=2)
+            del active_automations[lock_id]
 
-        automation_statuses[castle_id]['status'] = 'stopped'
-        automation_statuses[castle_id]['message'] = 'Автоматизация остановлена'
+        automation_statuses[lock_id]['status'] = 'stopped'
+        automation_statuses[lock_id]['message'] = 'Автоматизация остановлена'
         return jsonify({'success': True, 'message': 'Автоматизация остановлена'})
 
     return jsonify({'success': False, 'message': 'Нет активной автоматизации'})
 
 
-def is_automation_active(castle_id):
+def is_automation_active(lock_id):
     """Проверка, активна ли автоматизация"""
-    if castle_id not in automation_statuses:
+    if lock_id not in automation_statuses:
         return False
-    status = automation_statuses[castle_id].get('status', '')
-    return status in ['starting', 'loading', 'waiting', 'running'] and castle_id in active_automations
+    status = automation_statuses[lock_id].get('status', '')
+    return status in ['starting', 'loading', 'waiting', 'running'] and lock_id in active_automations
 
 
 if __name__ == '__main__':

@@ -1,16 +1,16 @@
-from collections import deque
 import time
-from datetime import datetime
+from collections import deque
 
-class CastleCracker:
-    def __init__(self, castle_data, timeout_seconds=30, max_states=500000):
-        self.name = castle_data['name']
-        self.num_cells = castle_data['cells']
-        self.start = castle_data['start_positions']
-        self.deps = castle_data['dependencies']
+
+class LockCracker:
+    def __init__(self, lock_data, timeout_seconds=30, max_states=500000):
+        self.name = lock_data['name']
+        self.num_cells = lock_data['cells']
+        self.start = lock_data['start_positions']
+        self.deps = lock_data['dependencies']
 
         # Получаем настройки из данных замка или используем значения по умолчанию
-        settings = castle_data.get('settings', {})
+        settings = lock_data.get('settings', {})
         self.target_pos = int(settings.get('target_position', {}).get('value', 4))
         self.min_pos = int(settings.get('min_position', {}).get('value', 1))
         self.max_pos = int(settings.get('max_position', {}).get('value', 7))
@@ -186,11 +186,11 @@ class CastleCracker:
         return steps
 
 
-class IterativeDeepeningCracker(CastleCracker):
+class IterativeDeepeningCracker(LockCracker):
     """Альтернативный алгоритм с итеративным углублением для больших пространств"""
 
-    def __init__(self, castle_data, timeout_seconds=30, max_depth=50):
-        super().__init__(castle_data, timeout_seconds)
+    def __init__(self, lock_data, timeout_seconds=30, max_depth=50):
+        super().__init__(lock_data, timeout_seconds)
         self.max_depth = max_depth
 
     def dfs_limited(self, state, path, depth, visited, start_time):

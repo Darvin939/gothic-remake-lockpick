@@ -22,7 +22,7 @@ class Database:
 
             # Создание таблицы замков
             cursor.execute('''
-                           CREATE TABLE IF NOT EXISTS castles (
+                           CREATE TABLE IF NOT EXISTS locks (
                                                                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                                                                   name TEXT UNIQUE NOT NULL,
                                                                   cells INTEGER NOT NULL,
@@ -57,31 +57,31 @@ class Database:
 
             # Создание связующей таблицы замков и тегов
             cursor.execute('''
-                           CREATE TABLE IF NOT EXISTS castle_tags (
-                                                                      castle_id INTEGER,
+                           CREATE TABLE IF NOT EXISTS lock_tags (
+                                                                      lock_id INTEGER,
                                                                       tag_id INTEGER,
-                                                                      FOREIGN KEY (castle_id) REFERENCES castles(id) ON DELETE CASCADE,
+                                                                      FOREIGN KEY (lock_id) REFERENCES locks(id) ON DELETE CASCADE,
                                FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
-                               PRIMARY KEY (castle_id, tag_id)
+                               PRIMARY KEY (lock_id, tag_id)
                                )
                            ''')
 
             # Создание индексов для поиска
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_name ON castles(name)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_solvable ON castles(has_solution)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_created ON castles(created_at)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_name ON locks(name)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_solvable ON locks(has_solution)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_created ON locks(created_at)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_tag_name ON tags(name)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_tag_count ON tags(usage_count DESC)')
 
             # Создание триггеров для автоматического обновления счётчиков тегов
             cursor.execute('''
                            CREATE TRIGGER IF NOT EXISTS update_tag_usage_on_insert
-                           AFTER INSERT ON castle_tags
+                           AFTER INSERT ON lock_tags
                            BEGIN
                            UPDATE tags
                            SET usage_count = (SELECT COUNT(*)
-                                              FROM castle_tags
-                                              WHERE castle_tags.tag_id = NEW.tag_id)
+                                              FROM lock_tags
+                                              WHERE lock_tags.tag_id = NEW.tag_id)
                            WHERE id = NEW.tag_id;
                            END;
                            ''')
@@ -90,12 +90,12 @@ class Database:
                            CREATE TRIGGER IF NOT EXISTS update_tag_usage_on_delete
                            AFTER
                            DELETE
-                           ON castle_tags
+                           ON lock_tags
                            BEGIN
                            UPDATE tags
                            SET usage_count = (SELECT COUNT(*)
-                                              FROM castle_tags
-                                              WHERE castle_tags.tag_id = OLD.tag_id)
+                                              FROM lock_tags
+                                              WHERE lock_tags.tag_id = OLD.tag_id)
                            WHERE id = OLD.tag_id;
 
                            DELETE
@@ -127,16 +127,16 @@ class Database:
                 VALUES (?, ?, ?, ?)
                            ''', (key, value, description, datetime.now().isoformat()))
 
-    def get_castle_tags(self, castle_id: int) -> List[str]:
+    def get_lock_tags(self, lock_id: int) -> List[str]:
         """Получение тегов замка"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                            SELECT t.name FROM tags t
-                                                  JOIN castle_tags ct ON ct.tag_id = t.id
-                           WHERE ct.castle_id = ?
+                                                  JOIN lock_tags ct ON ct.tag_id = t.id
+                           WHERE ct.lock_id = ?
                            ORDER BY t.name
-                           ''', (castle_id,))
+                           ''', (lock_id,))
             return [row['name'] for row in cursor.fetchall()]
 
     def get_all_tags(self, limit: int = 50) -> List[Dict]:
@@ -188,37 +188,37 @@ class Database:
             print(f"Error updating settings: {e}")
             return False
 
-    def get_castle(self, castle_id: int) -> Optional[Dict]:
+    def get_lock(self, lock_id: int) -> Optional[Dict]:
         """Получение замка по ID с тегами"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT * FROM castles WHERE id = ?', (castle_id,))
+            cursor.execute('SELECT * FROM locks WHERE id = ?', (lock_id,))
             row = cursor.fetchone()
 
             if row:
-                castle = self._row_to_dict(row)
-                castle['settings'] = self.get_all_settings()
+                lock = self._row_to_dict(row)
+                lock['settings'] = self.get_all_settings()
                 # Добавляем теги
-                castle['tags'] = self.get_castle_tags(castle_id)
-                return castle
+                lock['tags'] = self.get_lock_tags(lock_id)
+                return lock
             return None
 
-    def get_all_castles(self, search: str = None, tag_filters: List[str] = None, page: int = 1, per_page: int = 12):
+    def get_all_locks(self, search: str = None, tag_filters: List[str] = None, page: int = 1, per_page: int = 12):
         """Получение всех замков с поиском и фильтрацией по тегам"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
             # Базовый запрос
-            query = "SELECT DISTINCT c.* FROM castles c"
-            count_query = "SELECT COUNT(DISTINCT c.id) as total FROM castles c"
+            query = "SELECT DISTINCT c.* FROM locks c"
+            count_query = "SELECT COUNT(DISTINCT c.id) as total FROM locks c"
             params = []
             count_params = []
 
             # Фильтр по тегам
             if tag_filters and len(tag_filters) > 0:
-                query += " JOIN castle_tags ct ON ct.castle_id = c.id"
+                query += " JOIN lock_tags ct ON ct.lock_id = c.id"
                 query += " JOIN tags t ON t.id = ct.tag_id"
-                count_query += " JOIN castle_tags ct ON ct.castle_id = c.id"
+                count_query += " JOIN lock_tags ct ON ct.lock_id = c.id"
                 count_query += " JOIN tags t ON t.id = ct.tag_id"
 
                 placeholders = ','.join(['?' for _ in tag_filters])
@@ -261,25 +261,25 @@ class Database:
             total_row = cursor.fetchone()
             total = total_row['total'] if total_row else 0
 
-            castles = [self._row_to_dict(row) for row in rows]
+            locks = [self._row_to_dict(row) for row in rows]
             settings = self.get_all_settings()
-            for castle in castles:
-                castle['settings'] = settings
-                castle['tags'] = self.get_castle_tags(castle['id'])
+            for lock in locks:
+                lock['settings'] = settings
+                lock['tags'] = self.get_lock_tags(lock['id'])
 
-            return castles, total
+            return locks, total
 
-    def check_castle_name_exists(self, name: str, exclude_id: int = None) -> bool:
+    def check_lock_name_exists(self, name: str, exclude_id: int = None) -> bool:
         """Проверка существования замка с точным совпадением имени"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             if exclude_id:
-                cursor.execute('SELECT id FROM castles WHERE name = ? AND id != ?', (name, exclude_id))
+                cursor.execute('SELECT id FROM locks WHERE name = ? AND id != ?', (name, exclude_id))
             else:
-                cursor.execute('SELECT id FROM castles WHERE name = ?', (name,))
+                cursor.execute('SELECT id FROM locks WHERE name = ?', (name,))
             return cursor.fetchone() is not None
 
-    def update_castle_with_tags(self, castle_id: int, castle_data: Dict, tags: List[str]):
+    def update_lock_with_tags(self, lock_id: int, lock_data: Dict, tags: List[str]):
         """Единое обновление замка и его тегов в одной транзакции"""
         if len(tags) > 5:
             tags = tags[:5]
@@ -287,7 +287,7 @@ class Database:
         max_cells = int(self.get_setting('max_cells') or '8')
         min_cells = int(self.get_setting('min_cells') or '3')
 
-        if castle_data['cells'] < min_cells or castle_data['cells'] > max_cells:
+        if lock_data['cells'] < min_cells or lock_data['cells'] > max_cells:
             raise ValueError(f"Количество ячеек должно быть от {min_cells} до {max_cells}")
 
         with self.get_connection() as conn:
@@ -295,23 +295,23 @@ class Database:
 
             # 1. Обновляем замок
             cursor.execute('''
-                           UPDATE castles
+                           UPDATE locks
                            SET name = ?, cells = ?, start_positions = ?, dependencies = ?,
                                has_solution = ?, solution_length = ?, updated_at = ?
                            WHERE id = ?
                            ''', (
-                               castle_data['name'],
-                               castle_data['cells'],
-                               json.dumps(castle_data['start_positions']),
-                               json.dumps(castle_data['dependencies']),
-                               castle_data.get('has_solution', False),
-                               castle_data.get('solution_length', 0),
+                               lock_data['name'],
+                               lock_data['cells'],
+                               json.dumps(lock_data['start_positions']),
+                               json.dumps(lock_data['dependencies']),
+                               lock_data.get('has_solution', False),
+                               lock_data.get('solution_length', 0),
                                datetime.now().isoformat(),
-                               castle_id
+                               lock_id
                            ))
 
             # 2. Удаляем старые теги
-            cursor.execute('DELETE FROM castle_tags WHERE castle_id = ?', (castle_id,))
+            cursor.execute('DELETE FROM lock_tags WHERE lock_id = ?', (lock_id,))
 
             # 3. Добавляем новые теги
             for tag_name in tags:
@@ -328,21 +328,21 @@ class Database:
 
                     # Добавляем связь
                     cursor.execute('''
-                                   INSERT OR IGNORE INTO castle_tags (castle_id, tag_id)
+                                   INSERT OR IGNORE INTO lock_tags (lock_id, tag_id)
                         VALUES (?, ?)
-                                   ''', (castle_id, tag_id))
+                                   ''', (lock_id, tag_id))
 
             # 4. Обновляем счётчики использования тегов
             cursor.execute('''
                            UPDATE tags SET usage_count = (
-                               SELECT COUNT(*) FROM castle_tags WHERE castle_tags.tag_id = tags.id
+                               SELECT COUNT(*) FROM lock_tags WHERE lock_tags.tag_id = tags.id
                            )
                            ''')
 
             # 5. Одна транзакция - один commit
             conn.commit()
 
-    def create_castle_with_tags(self, castle_data: Dict, tags: List[str]) -> int:
+    def create_lock_with_tags(self, lock_data: Dict, tags: List[str]) -> int:
         """Единое создание замка и его тегов в одной транзакции"""
         if len(tags) > 5:
             tags = tags[:5]
@@ -350,7 +350,7 @@ class Database:
         max_cells = int(self.get_setting('max_cells') or '8')
         min_cells = int(self.get_setting('min_cells') or '3')
 
-        if castle_data['cells'] < min_cells or castle_data['cells'] > max_cells:
+        if lock_data['cells'] < min_cells or lock_data['cells'] > max_cells:
             raise ValueError(f"Количество ячеек должно быть от {min_cells} до {max_cells}")
 
         with self.get_connection() as conn:
@@ -358,21 +358,21 @@ class Database:
 
             # 1. Создаём замок
             cursor.execute('''
-                           INSERT INTO castles (
+                           INSERT INTO locks (
                                name, cells, start_positions, dependencies,
                                has_solution, solution_length, updated_at
                            ) VALUES (?, ?, ?, ?, ?, ?, ?)
                            ''', (
-                               castle_data['name'],
-                               castle_data['cells'],
-                               json.dumps(castle_data['start_positions']),
-                               json.dumps(castle_data['dependencies']),
-                               castle_data.get('has_solution', False),
-                               castle_data.get('solution_length', 0),
+                               lock_data['name'],
+                               lock_data['cells'],
+                               json.dumps(lock_data['start_positions']),
+                               json.dumps(lock_data['dependencies']),
+                               lock_data.get('has_solution', False),
+                               lock_data.get('solution_length', 0),
                                datetime.now().isoformat()
                            ))
 
-            castle_id = cursor.lastrowid
+            lock_id = cursor.lastrowid
 
             # 2. Добавляем теги
             for tag_name in tags:
@@ -387,26 +387,26 @@ class Database:
                         tag_id = cursor.lastrowid
 
                     cursor.execute('''
-                                   INSERT OR IGNORE INTO castle_tags (castle_id, tag_id)
+                                   INSERT OR IGNORE INTO lock_tags (lock_id, tag_id)
                         VALUES (?, ?)
-                                   ''', (castle_id, tag_id))
+                                   ''', (lock_id, tag_id))
 
             # 3. Обновляем счётчики
             cursor.execute('''
                            UPDATE tags SET usage_count = (
-                               SELECT COUNT(*) FROM castle_tags WHERE castle_tags.tag_id = tags.id
+                               SELECT COUNT(*) FROM lock_tags WHERE lock_tags.tag_id = tags.id
                            )
                            ''')
 
             conn.commit()
-            return castle_id
+            return lock_id
 
-    def delete_castle(self, castle_id: int):
+    def delete_lock(self, lock_id: int):
         """Удаление замка"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('DELETE FROM castles WHERE id = ?', (castle_id,))
-            cursor.execute('DELETE FROM castle_tags WHERE castle_id = ?', (castle_id,))
+            cursor.execute('DELETE FROM locks WHERE id = ?', (lock_id,))
+            cursor.execute('DELETE FROM lock_tags WHERE lock_id = ?', (lock_id,))
             conn.commit()
 
     def get_stats(self) -> Dict:
@@ -414,13 +414,13 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute('SELECT COUNT(*) as total FROM castles')
+            cursor.execute('SELECT COUNT(*) as total FROM locks')
             total = cursor.fetchone()['total']
 
-            cursor.execute('SELECT COUNT(*) as solvable FROM castles WHERE has_solution = 1')
+            cursor.execute('SELECT COUNT(*) as solvable FROM locks WHERE has_solution = 1')
             solvable = cursor.fetchone()['solvable']
 
-            cursor.execute('SELECT AVG(solution_length) as avg_moves FROM castles WHERE has_solution = 1')
+            cursor.execute('SELECT AVG(solution_length) as avg_moves FROM locks WHERE has_solution = 1')
             avg_moves = cursor.fetchone()['avg_moves'] or 0
 
             return {

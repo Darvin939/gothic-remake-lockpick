@@ -1,7 +1,7 @@
 {
   "nav": {
     "home": "Главная",
-    "castles": "Замки",
+    "locks": "Замки",
     "create": "Создать",
     "settings": "Настройки",
     "import": "Импорт",
@@ -10,7 +10,7 @@
   "index": {
     "title": "Gothic1 Remake Lockpicker",
     "subtitle": "Система для управления и взлома замков с зависимыми ячейками",
-    "total_castles": "Всего замков",
+    "total_locks": "Всего замков",
     "solvable": "Решаемые",
     "unsolvable": "Нерешаемые",
     "avg_moves": "Сред. ходов",
@@ -18,8 +18,8 @@
     "cells_range": "Ячейки",
     "positions_range": "Позиции",
     "target": "Цель",
-    "manage_castles": "Управление замками",
-    "create_castle": "Создать замок",
+    "manage_locks": "Управление замками",
+    "create_lock": "Создать замок",
     "about": "О системе",
     "features": {
       "dependencies": "Зависимые ячейки",
@@ -30,7 +30,7 @@
       "visualization_desc": "Пошаговое отображение с анимацией перемещений"
     }
   },
-  "castles": {
+  "locks": {
     "title": "Все замки",
     "import": "Все замки",
     "export_all": "Все замки",
@@ -47,8 +47,8 @@
     "reset": "Сброс",
     "filter_active": "Активные фильтры",
     "found": "Найдено",
-    "castles_found": "замков",
-    "castles_found_by": "по запросу",
+    "locks_found": "замков",
+    "locks_found_by": "по запросу",
     "show": "Показывать",
     "cells": "Ячеек",
     "start_positions": "Стартовые позиции",
@@ -62,12 +62,12 @@
     "delete": "Уд.",
     "delete_lock": "Удалить замок «{name}»?",
     "no_results": "Ничего не найдено",
-    "no_castles": "Нет созданных замков",
+    "no_locks": "Нет созданных замков",
     "create_first": "Создайте первый замок, чтобы начать!",
     "try_change_query": "Попробуйте изменить поисковый запрос",
     "page_info": "Страница {current_page} из {total_pages} (всего {total} замков)"
   },
-  "castle_detail": {
+  "lock_detail": {
     "edit": "Редактировать",
     "delete": "Удалить",
     "delete_lock": "Удалить замок «{name}»?",
@@ -97,7 +97,7 @@
     "lock_unsolvable": "Замок нерешаем",
     "back_to_list": "Назад к списку"
   },
-  "castle_form": {
+  "lock_form": {
     "name": "Название замка",
     "name_hint": "Название не может быть пустым или состоять только из пробелов",
     "cells": "Количество ячеек ({min}-{max})",
@@ -153,9 +153,9 @@
     "changed_by_dependency": "Изменилась из-за зависимости",
     "total_changes": "Всего изменений",
     "dependent_count": "Зависимых",
-    "castle_opened": "ЗАМОК ОТКРЫТ!",
+    "lock_opened": "ЗАМОК ОТКРЫТ!",
     "congrats": "Все ячейки успешно перемещены в центральную позицию!",
-    "back_to_castle": "К замку",
+    "back_to_lock": "К замку",
     "show_again": "Показать снова",
     "keyboard_controls": "Управление клавишами",
     "legend": "Легенда",
@@ -211,7 +211,7 @@
     "select_file": "Выберите JSON файл с конфигурацией",
     "file_hint": "Поддерживаются файлы в формате JSON (один замок или несколько)",
     "format_title": "Формат файла",
-    "import_info": "Можно импортировать несколько замков, используя поле \"castles\": [...]",
+    "import_info": "Можно импортировать несколько замков, используя поле \"locks\": [...]",
     "how_to_export": "Как экспортировать замки?",
     "import": "Импортировать",
     "back": "Назад",

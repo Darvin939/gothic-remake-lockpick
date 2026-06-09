@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% set target_pos = castle.settings.get('target_position', {}).get('value', '4')|int %}
-{% set min_pos = castle.settings.get('min_position', {}).get('value', '1')|int %}
-{% set max_pos = castle.settings.get('max_position', {}).get('value', '7')|int %}
+{% set target_pos = lock.settings.get('target_position', {}).get('value', '4')|int %}
+{% set min_pos = lock.settings.get('min_position', {}).get('value', '1')|int %}
+{% set max_pos = lock.settings.get('max_position', {}).get('value', '7')|int %}
 
-{% block title %}Решение: {{ castle.name }}{% endblock %}
+{% block title %}Решение: {{ lock.name }}{% endblock %}
 
 {% block content %}
 
@@ -88,7 +88,7 @@
     <div class="col-lg-10 mx-auto">
         <div class="card">
             <div class="card-header bg-success text-white">
-                <h4><i class="fas fa-key"></i> Решение для замка "{{ castle.name }}"</h4>
+                <h4><i class="fas fa-key"></i> Решение для замка "{{ lock.name }}"</h4>
                 <p class="mb-0">Найдено решение за {{ solution|length }} ходов!</p>
             </div>
             <div class="card-body">
@@ -135,7 +135,7 @@
                             {% set active_to = step.state[active_cell - 1] %}
 
                             {% set dependent_changes = [] %}
-                            {% for i in range(castle.cells) %}
+                            {% for i in range(lock.cells) %}
                             {% if i != active_cell - 1 and step.state[i] != prev_state[i] %}
                             {% set _ = dependent_changes.append({
                             'cell': i + 1,
@@ -316,7 +316,7 @@
             </div>
             <div class="card-footer">
                 <div class="d-flex justify-content-between">
-                    <a href="{{ url_for('castle_detail', castle_id=castle.id) }}" class="btn btn-secondary">
+                    <a href="{{ url_for('lock_detail', lock_id=lock.id) }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> К замку
                     </a>
                 </div>
@@ -592,7 +592,7 @@
     // Автоматизация
     let automationActive = false;
     let statusCheckInterval = null;
-    let currentCastleId = {{ castle.id }};
+    let currentLockId = {{ lock.id }};
 
     let currentStep = 0;
     let totalSteps = {{ steps|length - 1 }};
@@ -608,7 +608,7 @@
 
     // Функция проверки статуса автоматизации
     function checkAutomationStatus() {
-        fetch(`/castle/${currentCastleId}/automate/status`)
+        fetch(`/lock/${currentLockId}/automate/status`)
             .then(response => response.json())
             .then(data => {
                 updateAutomationUI(data);
@@ -731,7 +731,7 @@
         document.getElementById('statusMessage').innerHTML = '🔍 Запуск автоматизации...';
         document.getElementById('statusSpinner').style.display = 'inline-block';
 
-        fetch(`/castle/${currentCastleId}/automate`, {
+        fetch(`/lock/${currentLockId}/automate`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -767,7 +767,7 @@
 
     // Остановка автоматизации
     document.getElementById('stopAutomateBtn')?.addEventListener('click', function() {
-        fetch(`/castle/${currentCastleId}/automate/stop`, {
+        fetch(`/lock/${currentLockId}/automate/stop`, {
             method: 'POST'
         })
             .then(response => response.json())
@@ -805,7 +805,7 @@
     // Останавливаем автоматизацию при закрытии страницы
     window.addEventListener('beforeunload', function() {
         if (automationActive) {
-            fetch(`/castle/${currentCastleId}/automate/stop`, { method: 'POST' });
+            fetch(`/lock/${currentLockId}/automate/stop`, { method: 'POST' });
         }
     });
 
