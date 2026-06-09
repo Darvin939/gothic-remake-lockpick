@@ -91,66 +91,61 @@
                         </div>
                         {% endif %}
                     </div>
-
-                    <div class="col-md-6">
-                        <h5>🎯 {{ _('castle_detail.visualization') }}</h5>
-                        <div class="border rounded p-3 bg-light">
-                            {% set min_pos = castle.settings.get('min_position', {}).get('value', '1')|int %}
-                            {% set max_pos = castle.settings.get('max_position', {}).get('value', '7')|int %}
-
-                            {% for i, pos in enumerate(castle.start_positions) %}
-                            <div class="mb-3">
-                                <strong>{{ _('castle_detail.cell') }} {{ i+1 }}:</strong>
-                                <div class="d-flex flex-wrap align-items-center mt-2">
-                                    {% for p in range(min_pos, max_pos + 1) %}
-                                    {% if p == pos %}
-                                    <span class="position-circle position-{{ p }} mx-1">
-                                                {{ p }}
-                                            </span>
-                                    {% else %}
-                                    <span class="position-circle position-inactive mx-1">
-                                                {{ p }}
-                                            </span>
-                                    {% endif %}
-                                    {% endfor %}
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
                 </div>
 
-                <h5 class="mt-4">🔗 {{ _('castle_detail.dependencies') }}</h5>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead class="table-dark">
-                        <tr>
-                            <th>{{ _('castle_detail.cell') }}</th>
-                            <th>{{ _('castle_detail.affects') }}</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {% for cell in range(1, castle.cells + 1) %}
-                        <tr>
-                            <td class="fw-bold">{{ _('castle_detail.cell') }} {{ cell }}</td>
-                            <td>
-                                {% set deps = castle.dependencies.get(cell|string, {}) %}
-                                {% if deps %}
-                                {% for dep_cell, sign in deps.items() %}
-                                <span class="dependency-badge dependency-{% if sign == '+' %}plus{% else %}minus{% endif %} me-2">
-                                            <i class="fas fa-arrow-{% if sign == '+' %}right{% else %}left{% endif %}"></i>
-                                            {{ _('castle_detail.cell_lower') }} {{ dep_cell }}
-                                            <small>({% if sign == '+' %}{{ _('castle_detail.same_direction') }}{% else %}{{ _('castle_detail.opposite_direction') }}{% endif %})</small>
-                                        </span>
+                <div class="mb-4">
+                    <label class="form-label h5">🔗 {{ _('castle_detail.dependencies') }}</label>
+                    <p class="text-muted small">
+                        <i class="fas fa-info-circle"></i>
+                        {{ _('castle_detail.dependencies_hint') }}
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-bordered dependencies-table-readonly">
+                            <thead class="table-secondary">
+                            <tr>
+                                <th rowspan="2" style="text-align: center; vertical-align: middle; width: 100px">{{ _('castle_detail.cell') }}</th>
+                                <th colspan="{{ castle.cells }}" style="text-align: center;">{{ _('castle_detail.target_cell') }}</th>
+                            </tr>
+                            <tr>
+                                {% for j in range(1, castle.cells + 1) %}
+                                <th class="text-center" style="min-width: 70px;">{{ _('castle_detail.cell') }} {{ j }}</th>
                                 {% endfor %}
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for i in range(1, castle.cells + 1) %}
+                            <tr>
+                                <td class="fw-bold text-center bg-light">{{ _('castle_detail.cell') }} {{ i }}</td>
+                                {% for j in range(1, castle.cells + 1) %}
+                                {% if i == j %}
+                                <td class="text-center text-muted bg-light">
+                                    <i class="fas fa-minus"></i>
+                                </td>
                                 {% else %}
-                                <span class="text-muted">{{ _('castle_detail.no_dependencies') }}</span>
+                                {% set deps = castle.dependencies.get(i|string, {}) %}
+                                {% set sign = deps.get(j|string, null) %}
+                                <td class="text-center dependency-cell-readonly">
+                                    {% if sign == '+' %}
+                                    <span class="badge bg-success dependency-badge-readonly">
+                                        <i class="fas fa-plus"></i>
+                                    </span>
+                                    {% elif sign == '-' %}
+                                    <span class="badge bg-danger dependency-badge-readonly">
+                                        <i class="fas fa-minus"></i>
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary dependency-badge-readonly opacity-50">
+                                        <i class="fas fa-times"></i>
+                                    </span>
+                                    {% endif %}
+                                </td>
                                 {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <div class="mt-4 text-center">
@@ -175,6 +170,40 @@
 </div>
 
 <style>
+    .dependencies-table {
+        font-size: 0.85rem;
+    }
+    .dependencies-table th,
+    .dependencies-table td {
+        vertical-align: middle;
+        padding: 0.5rem;
+    }
+    .dependency-switch .btn {
+        padding: 0.2rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    .dependency-switch .btn i {
+        margin-right: 2px;
+    }
+
+    .card { transition: none; }
+    .card:hover { transform: none; box-shadow: none; }
+
+    @media (max-width: 768px) {
+        .position-card { min-width: 100px; }
+        .btn-outline-danger, .btn-outline-success { padding: 0.15rem 0.35rem; }
+        .dependencies-table { font-size: 0.7rem; }
+        .dependency-switch .btn { padding: 0.15rem 0.3rem; font-size: 0.65rem; }
+    }
+
+    @media (max-width: 576px) {
+        .position-card { min-width: 85px; }
+        .dependencies-table th,
+        .dependencies-table td {
+            padding: 0.25rem;
+        }
+    }
+
     .position-indicator {
         display: inline-block;
         width: 35px;

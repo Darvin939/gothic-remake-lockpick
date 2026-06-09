@@ -33,33 +33,49 @@
                         <small class="text-muted">{{ _('castle_form.cells_hint', min=min_cells, max=max_cells) }}</small>
                     </div>
 
-                    <!-- Стартовые позиции пинов -->
+                    <!-- Стартовые позиции -->
                     <div class="mb-4">
                         <label class="form-label h5">
-                            🎯 {{ _('castle_form.start_positions', min=min_pos, max=max_pos) }}
+                            🎯 {{ _('castle_form.start_positions') }}
                         </label>
                         <div id="startPositionsContainer" class="row g-2"></div>
                     </div>
 
-                    <!-- Зависимости -->
+                    <!-- Зависимости (табличный вид) -->
                     <div class="mb-4">
                         <label class="form-label h5">🔗 {{ _('castle_form.dependencies') }}</label>
                         <p class="text-muted small">
                             <i class="fas fa-info-circle"></i>
                             {{ _('castle_form.dependencies_hint') }}
                         </p>
-                        <div id="dependenciesContainer"></div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover dependencies-table">
+                                <thead class="table-secondary">
+                                <tr>
+                                    <th rowspan="2" style="text-align: center; width: 120px">{{ _('castle_form.cell') }}</th>
+                                    <th colspan="13" style="text-align: center;">{{ _('castle_form.target_cell') }}</th>
+                                </tr>
+                                <tr>
+                                    {% for j in range(1, max_cells + 1) %}
+                                    <th class="text-center dependency-cell-header" data-cell="{{ j }}" style="display: none;">{{ _('castle_form.cell') }} {{ j }}</th>
+                                    {% endfor %}
+                                </tr>
+                                </thead>
+                                <tbody id="dependenciesTableBody">
+                                <!-- Строки будут добавляться динамически -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
+                    <!-- Теги -->
                     <div class="mb-4">
                         <label class="form-label h5">
                             <i class="fas fa-tags"></i> {{ _('castle_form.tags') }}
                         </label>
                         <div class="card">
                             <div class="card-body">
-                                <div id="tagsContainer" class="d-flex flex-wrap gap-2 mb-3">
-                                    <!-- Теги будут добавляться сюда -->
-                                </div>
+                                <div id="tagsContainer" class="d-flex flex-wrap gap-2 mb-3"></div>
                                 <div class="input-group">
                                     <input type="text" class="form-control" id="tagInput"
                                            placeholder="{{ _('castle_form.tag_placeholder_detailed') }}"
@@ -82,7 +98,7 @@
                     </div>
 
                     <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('castles') }}" class="btn btn-secondary">
+                        <a href="{{ url_for('castle_detail', castle_id=castle.id) }}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> {{ _('castle_form.back') }}
                         </a>
                         <button type="submit" class="btn btn-primary">
@@ -101,39 +117,40 @@
     let currentCells = {{ castle.cells if castle else min_cells }};
     let dependenciesData = {};
     let startPositions = [];
-
-    // Управление тегами
     let currentTags = [];
 
-    // Загрузка тегов при редактировании
     {% if castle and castle.tags %}
     currentTags = {{ castle.tags | tojson }};
     {% endif %}
 
-    // Границы из настроек
+    {% if castle and castle.dependencies %}
+    dependenciesData = {{ castle.dependencies | tojson }};
+    {% endif %}
+
+    {% if castle and castle.start_positions %}
+    startPositions = {{ castle.start_positions | tojson }};
+    {% endif %}
+
     const MIN_POS = {{ min_pos }};
     const MAX_POS = {{ max_pos }};
+    const MAX_CELLS = {{ max_cells }};
 
+    // ==================== ТЕГИ ====================
     function renderTags() {
         const container = document.getElementById('tagsContainer');
         container.innerHTML = '';
-
         currentTags.forEach((tag, index) => {
             const tagBadge = document.createElement('span');
             tagBadge.className = 'badge bg-primary d-flex align-items-center gap-1 p-2';
             tagBadge.style.fontSize = '0.9rem';
             tagBadge.innerHTML = `
-            <i class="fas fa-tag"></i>
-            ${escapeHtml(tag)}
-            <button type="button" class="btn-close btn-close-white ms-1"
-                    style="font-size: 0.6rem;"
-                    onclick="removeTag(${index})"></button>
-            <input type="hidden" name="tags" value="${escapeHtml(tag)}">
-        `;
+                <i class="fas fa-tag"></i>
+                ${escapeHtml(tag)}
+                <button type="button" class="btn-close btn-close-white ms-1" style="font-size: 0.6rem;" onclick="removeTag(${index})"></button>
+                <input type="hidden" name="tags" value="${escapeHtml(tag)}">
+            `;
             container.appendChild(tagBadge);
         });
-
-        // Обновляем состояние кнопки добавления
         const addBtn = document.getElementById('addTagBtn');
         const tagInput = document.getElementById('tagInput');
         if (currentTags.length >= 5) {
@@ -156,28 +173,23 @@
     function addTag() {
         const input = document.getElementById('tagInput');
         let tag = input.value.trim().toLowerCase();
-
         if (!tag) {
             showTagNotification('{{ _("castle_form.tag_placeholder") }}', 'warning');
             return;
         }
-
         if (tag.length > 30) {
             showTagNotification('{{ _("castle_form.tag_name_size_reached") }}', 'danger');
             return;
         }
-
         if (currentTags.includes(tag)) {
             showTagNotification('{{ _("castle_form.tag_already_exists") }}', 'warning');
             input.value = '';
             return;
         }
-
         if (currentTags.length >= 5) {
             showTagNotification('{{ _("castle_form.tag_limit_reached") }}', 'danger');
             return;
         }
-
         currentTags.push(tag);
         renderTags();
         input.value = '';
@@ -193,63 +205,20 @@
         notification.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
         notification.style.zIndex = '9999';
         notification.style.minWidth = '250px';
-        notification.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+        notification.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
         document.body.appendChild(notification);
         setTimeout(() => notification.remove(), 3000);
     }
 
-    // Инициализация тегов
-    document.addEventListener('DOMContentLoaded', function() {
-        renderTags();
-
-        // Добавление по Enter
-        document.getElementById('tagInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                addTag();
-            }
-        });
-
-        document.getElementById('addTagBtn').addEventListener('click', addTag);
-    });
-
-    // Инициализация при загрузке
-    document.addEventListener('DOMContentLoaded', function() {
-        {% if castle %}
-        // Загружаем данные существующего замка
-        startPositions = {{ castle.start_positions | tojson }};
-        dependenciesData = {{ castle.dependencies | tojson }};
-        {% else %}
-        // Данные по умолчанию для нового замка
-        startPositions = [];
-        for (let i = 0; i < currentCells; i++) {
-            startPositions.push(Math.floor((MIN_POS + MAX_POS) / 2) || 4);
-        }
-        dependenciesData = {};
-        {% endif %}
-
-        updateCells();
-    });
-
-    function updateCells() {
-        currentCells = parseInt(document.getElementById('cells').value);
-        updateStartPositions();
-        updateDependencies();
-    }
-
+    // ==================== СТАРТОВЫЕ ПОЗИЦИИ ====================
     function updateStartPositions() {
         const container = document.getElementById('startPositionsContainer');
         container.innerHTML = '';
-
         for (let i = 0; i < currentCells; i++) {
             let value = startPositions[i];
             if (value === undefined || value < MIN_POS || value > MAX_POS) {
                 value = Math.floor((MIN_POS + MAX_POS) / 2);
             }
-
             const col = document.createElement('div');
             col.className = 'col-6 col-sm-4 col-md-3 col-lg-2 mb-2';
             col.innerHTML = `
@@ -275,220 +244,132 @@
                 </div>
             `;
             container.appendChild(col);
-            updatePositionVisual(i, value);
-        }
-    }
-
-    function updatePositionVisual(index, value) {
-        const visualContainer = document.getElementById(`visual-${index}`);
-        if (visualContainer) {
-            visualContainer.innerHTML = getPositionVisual(value);
         }
     }
 
     function adjustPosition(index, delta) {
         let currentValue = parseInt(document.getElementById(`pos-${index}`).innerText);
         let newValue = currentValue + delta;
-
         if (newValue >= MIN_POS && newValue <= MAX_POS) {
             document.getElementById(`pos-${index}`).innerText = newValue;
             document.getElementById(`input-pos-${index}`).value = newValue;
-            updatePositionVisual(index, newValue);
             startPositions[index] = newValue;
         }
     }
 
-    function updateDependencies() {
-        const container = document.getElementById('dependenciesContainer');
-        container.innerHTML = '';
+    // ==================== ЗАВИСИМОСТИ (ТАБЛИЦА) ====================
+    function updateDependenciesTable() {
+        const thead = document.querySelector('.dependencies-table thead tr');
+        const tbody = document.getElementById('dependenciesTableBody');
+        tbody.innerHTML = '';
 
+        // Показываем/скрываем заголовки колонок в зависимости от currentCells
+        for (let j = 1; j <= MAX_CELLS; j++) {
+            const header = document.querySelector(`.dependency-cell-header[data-cell="${j}"]`);
+            if (header) {
+                header.style.display = j <= currentCells ? 'table-cell' : 'none';
+            }
+        }
+
+        // Создаем строки для каждой ячейки-источника
         for (let i = 1; i <= currentCells; i++) {
-            const cellId = i.toString();
-            const deps = dependenciesData[cellId] || {};
+            const row = document.createElement('tr');
+            // Ячейка с названием строки
+            const cellLabel = document.createElement('td');
+            cellLabel.className = 'fw-bold text-center bg-light';
+            cellLabel.textContent = `{{ _('castle_form.cell') }} ${i}`;
+            row.appendChild(cellLabel);
 
-            const card = document.createElement('div');
-            card.className = 'card mb-2 dependency-card';
-            card.innerHTML = `
-            <div class="card-header bg-light py-2">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        <i class="fas fa-cube"></i> {{ _('castle_form.cell') }} ${i}
-                    </h6>
-                    <button type="button" class="btn btn-sm btn-success" onclick="addDependency(${i})">
-                        <i class="fas fa-plus"></i> {{ _('castle_form.add_dependency') }}
-                    </button>
-                </div>
-            </div>
-            <div class="card-body p-2">
-                <div id="deps-${i}" class="dependencies-list"></div>
-            </div>
-        `;
-            container.appendChild(card);
-
-            const depsContainer = document.getElementById(`deps-${i}`);
-            if (!depsContainer) return;
-
-            if (Object.keys(deps).length === 0) {
-                depsContainer.innerHTML = `
-                    <div class="text-muted text-center py-1 small">
-                    {{ _('castle_form.no_dependencies') }}
-                    </div>
-                `;
-            }
-
-            for (const [depCell, sign] of Object.entries(deps)) {
-                addDependencyRow(i, parseInt(depCell), sign);
-            }
-        }
-    }
-
-    function addDependencyRow(sourceCell, targetCell = null, sign = '+') {
-        const container = document.getElementById(`deps-${sourceCell}`);
-        if (!container) return;
-
-        if (container.innerHTML.includes('{{ _("castle_form.no_dependencies") }}')) {
-            container.innerHTML = '';
-        }
-
-        const rowId = `dep-${sourceCell}-${Date.now()}-${Math.random()}`;
-
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'dependency-row mb-1 p-1';
-        rowDiv.id = rowId;
-        rowDiv.innerHTML = `
-        <div class="row g-1 align-items-center">
-            <div class="col-5">
-                <select class="form-select form-select-sm dep-target" data-source="${sourceCell}" data-row="${rowId}" style="width: 100%;">
-                    ${generateCellOptions(sourceCell, targetCell)}
-                </select>
-            </div>
-            <div class="col-4">
-                <select class="form-select form-select-sm dep-sign" data-source="${sourceCell}" data-row="${rowId}">
-                    <option value="+" ${sign === '+' ? 'selected' : ''}>{{ _('castle_form.same_direction_short') }}</option>
-                    <option value="-" ${sign === '-' ? 'selected' : ''}>{{ _('castle_form.opposite_direction_short') }}</option>
-                </select>
-            </div>
-            <div class="col-3">
-                <button type="button" class="btn btn-danger btn-sm w-100 py-0" onclick="removeDependency('${rowId}', ${sourceCell})">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    `;
-
-        container.appendChild(rowDiv);
-
-        const targetSelect = rowDiv.querySelector('.dep-target');
-        const signSelect = rowDiv.querySelector('.dep-sign');
-
-        // Для новой зависимости (без targetCell) - нужно принудительно вызвать change при первом выборе
-        if (targetCell === null) {
-            // Добавляем обработчик, который сработает при первом изменении
-            targetSelect.addEventListener('change', function() {
-                if (this.value) {
-                    updateDependencyData(sourceCell, this.value, signSelect.value);
-                    // Убираем пустую опцию после выбора
-                    const emptyOption = this.querySelector('option[value=""]');
-                    if (emptyOption) {
-                        emptyOption.remove();
-                    }
-                }
-            });
-        } else {
-            // Для существующей зависимости - просто добавляем обработчик
-            targetSelect.addEventListener('change', function() {
-                if (this.value) {
-                    updateDependencyData(sourceCell, this.value, signSelect.value);
-                }
-            });
-        }
-
-        signSelect.addEventListener('change', function() {
-            const targetValue = targetSelect.value;
-            if (targetValue && targetValue !== '') {
-                updateDependencyData(sourceCell, targetValue, this.value);
-            }
-        });
-
-        // Если это новая зависимость и нет выбранного значения, показываем предупреждение
-        if (targetCell === null) {
-            // Добавляем стиль для пустой опции
-            const emptyOption = targetSelect.querySelector('option[value=""]');
-            if (emptyOption) {
-                emptyOption.style.color = '#6c757d';
-                emptyOption.style.fontStyle = 'italic';
-            }
-        }
-    }
-
-    function generateCellOptions(sourceCell, selectedValue) {
-        let options = '';
-
-        // Добавляем пустую опцию-заглушку ТОЛЬКО для новых зависимостей (когда selectedValue === null)
-        if (selectedValue === null || selectedValue === undefined) {
-            options += `<option value="" selected disabled style="color: #6c757d; font-style: italic;">— {{ _('castle_form.select_cell') }} —</option>`;
-        }
-
-        for (let i = 1; i <= currentCells; i++) {
-            if (i !== sourceCell) {
-                const selected = (selectedValue === i) ? 'selected' : '';
-                options += `<option value="${i}" ${selected}>{{ _('castle_form.cell') }} ${i}</option>`;
-            }
-        }
-        return options;
-    }
-
-    function removeDependency(rowId, sourceCell) {
-        const row = document.getElementById(rowId);
-        if (row) {
-            const targetSelect = row.querySelector('.dep-target');
-            const targetValue = targetSelect.value;
-            if (targetValue && dependenciesData[sourceCell]) {
-                delete dependenciesData[sourceCell][targetValue];
-                if (Object.keys(dependenciesData[sourceCell]).length === 0) {
-                    delete dependenciesData[sourceCell];
-                }
-            }
-            row.remove();
-
-            const container = document.getElementById(`deps-${sourceCell}`);
-            if (container && container.children.length === 0) {
-                container.innerHTML = '<div class="text-muted text-center py-1 small">{{ _("castle_form.no_dependencies") }}</div>';
-            }
-        }
-    }
-
-    function addDependency(sourceCell) {
-        addDependencyRow(sourceCell, null, '+');
-    }
-
-    function updateDependencyData(sourceCell, targetCell, sign) {
-        if (!targetCell) return;
-
-        if (!dependenciesData[sourceCell]) {
-            dependenciesData[sourceCell] = {};
-        }
-
-        dependenciesData[sourceCell][targetCell] = sign;
-
-        const container = document.getElementById(`deps-${sourceCell}`);
-        const rows = container.querySelectorAll('.dependency-row');
-        let firstOccurrence = true;
-
-        rows.forEach(row => {
-            const select = row.querySelector('.dep-target');
-            if (select && select.value === targetCell) {
-                if (firstOccurrence) {
-                    firstOccurrence = false;
+            // Для каждой возможной целевой ячейки
+            for (let j = 1; j <= currentCells; j++) {
+                if (i === j) {
+                    // Диагональ - прочерк
+                    const td = document.createElement('td');
+                    td.className = 'text-center text-muted bg-light';
+                    td.innerHTML = '<i class="fas fa-minus"></i>';
+                    row.appendChild(td);
                 } else {
-                    row.remove();
+                    const td = document.createElement('td');
+                    td.className = 'text-center dependency-cell';
+                    const currentValue = dependenciesData[i]?.[j] || null;
+                    td.innerHTML = `
+                        <div class="btn-group btn-group-sm dependency-switch" role="group" data-source="${i}" data-target="${j}">
+                            <button type="button" class="btn ${currentValue === null ? 'btn-secondary active' : 'btn-outline-secondary'}" data-value="">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <button type="button" class="btn ${currentValue === '+' ? 'btn-success active' : 'btn-outline-secondary'}" data-value="+">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button type="button" class="btn ${currentValue === '-' ? 'btn-danger active' : 'btn-outline-secondary'}" data-value="-">
+                                <i class="fas fa-minus"></i>
+                            </button>
+
+                        </div>
+                    `;
+                    row.appendChild(td);
                 }
             }
+            tbody.appendChild(row);
+        }
+
+        // Добавляем обработчики для переключателей
+        document.querySelectorAll('.dependency-switch').forEach(switchGroup => {
+            const source = parseInt(switchGroup.dataset.source);
+            const target = parseInt(switchGroup.dataset.target);
+            const buttons = switchGroup.querySelectorAll('.btn');
+
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const value = btn.dataset.value;
+                    // Обновляем активный класс
+                    buttons.forEach(b => {
+                        b.classList.remove('active');
+                        if (b.dataset.value === '+') b.classList.remove('btn-success');
+                        if (b.dataset.value === '-') b.classList.remove('btn-danger');
+                        if (b.dataset.value === '') b.classList.remove('btn-secondary');
+                        b.classList.add('btn-outline-secondary');
+                    });
+                    console.log(value)
+                    btn.classList.remove('btn-outline-secondary');
+                    if (value === '+') btn.classList.add('btn-success');
+                    else if (value === '-') btn.classList.add('btn-danger');
+                    else btn.classList.add('btn-secondary');
+                    btn.classList.add('active');
+
+                    // Сохраняем зависимость
+                    if (value === '') {
+                        if (dependenciesData[source]) {
+                            delete dependenciesData[source][target];
+                            if (Object.keys(dependenciesData[source]).length === 0) {
+                                delete dependenciesData[source];
+                            }
+                        }
+                    } else {
+                        if (!dependenciesData[source]) dependenciesData[source] = {};
+                        dependenciesData[source][target] = value;
+                    }
+                });
+            });
         });
     }
 
-    // Подготовка данных перед отправкой формы
+    // ==================== ОБНОВЛЕНИЕ ВСЕХ КОМПОНЕНТОВ ====================
+    function updateCells() {
+        currentCells = parseInt(document.getElementById('cells').value);
+        // Обновляем стартовые позиции
+        while (startPositions.length < currentCells) {
+            startPositions.push(Math.floor((MIN_POS + MAX_POS) / 2));
+        }
+        while (startPositions.length > currentCells) {
+            startPositions.pop();
+        }
+        updateStartPositions();
+        updateDependenciesTable();
+    }
+
+    // ==================== ПОДГОТОВКА К ОТПРАВКЕ ====================
     document.getElementById('castleForm').addEventListener('submit', function(e) {
+        // Собираем стартовые позиции
         const startPositionsArray = [];
         for (let i = 0; i < currentCells; i++) {
             const posInput = document.getElementById(`input-pos-${i}`);
@@ -496,7 +377,6 @@
                 startPositionsArray.push(parseInt(posInput.value));
             }
         }
-
         let startPosField = document.querySelector('input[name="start_positions"]');
         if (!startPosField) {
             startPosField = document.createElement('input');
@@ -514,56 +394,81 @@
             this.appendChild(depsField);
         }
         depsField.value = JSON.stringify(dependenciesData);
+    });
 
-        const tempInputs = this.querySelectorAll('input[name="start_positions_array"]');
-        tempInputs.forEach(input => input.remove());
+    // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if castle %}
+        // Загружаем данные существующего замка
+        startPositions = {{ castle.start_positions | tojson }};
+        dependenciesData = {{ castle.dependencies | tojson }};
+        {% else %}
+        // Данные по умолчанию для нового замка
+        startPositions = [];
+        for (let i = 0; i < currentCells; i++) {
+            startPositions.push(Math.floor((MIN_POS + MAX_POS) / 2) || 4);
+        }
+        dependenciesData = {};
+        {% endif %}
+        // Инициализация стартовых позиций
+        if (startPositions.length === 0) {
+            for (let i = 0; i < currentCells; i++) {
+                startPositions.push(Math.floor((MIN_POS + MAX_POS) / 2));
+            }
+        }
+        updateStartPositions();
+        updateDependenciesTable();
+
+        // Теги
+        renderTags();
+        document.getElementById('tagInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addTag();
+            }
+        });
+        document.getElementById('addTagBtn').addEventListener('click', addTag);
     });
 </script>
 
 <style>
-    .position-dot {
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        display: inline-block;
-        transition: none;
-    }
-
-    .position-dot-1, .position-dot-7 { background-color: #dc3545; }
-    .position-dot-2, .position-dot-6 { background-color: #fd7e14; }
-    .position-dot-3, .position-dot-5 { background-color: #ffc107; }
-    .position-dot-4 { background-color: #28a745; }
-    .position-dot-inactive { background-color: #e9ecef; border: 1px solid #dee2e6; }
-
     .position-card { min-width: 120px; }
     .position-card .card-body { padding: 0.5rem; }
 
     .btn-outline-danger, .btn-outline-success { line-height: 1; padding: 0.25rem 0.5rem; }
 
-    .dependency-card { transition: none; }
-    .dependency-row { background-color: #f8f9fa; border-radius: 6px; transition: none; }
-    .dependency-row:hover { background-color: #e9ecef; }
+    .dependencies-table {
+        font-size: 0.85rem;
+    }
+    .dependencies-table th,
+    .dependencies-table td {
+        vertical-align: middle;
+        padding: 0.5rem;
+    }
+    .dependency-switch .btn {
+        padding: 0.2rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    .dependency-switch .btn i {
+        margin-right: 2px;
+    }
 
     .card { transition: none; }
     .card:hover { transform: none; box-shadow: none; }
-    .btn-outline-danger:hover, .btn-outline-success:hover { transform: none; }
-
-    .form-select-sm { font-size: 0.8rem; padding: 0.2rem 0.5rem; }
-    .dependencies-list { max-height: 200px; overflow-y: auto; }
 
     @media (max-width: 768px) {
-        .position-dot { width: 14px; height: 14px; }
         .position-card { min-width: 100px; }
         .btn-outline-danger, .btn-outline-success { padding: 0.15rem 0.35rem; }
-        .fw-bold.fs-4 { font-size: 1.1rem; }
-        .form-select-sm { font-size: 0.7rem; padding: 0.15rem 0.3rem; }
-        .btn-sm { font-size: 0.7rem; padding: 0.15rem 0.3rem; }
+        .dependencies-table { font-size: 0.7rem; }
+        .dependency-switch .btn { padding: 0.15rem 0.3rem; font-size: 0.65rem; }
     }
 
     @media (max-width: 576px) {
-        .position-dot { width: 10px; height: 10px; }
         .position-card { min-width: 85px; }
-        .gap-1 { gap: 0.15rem !important; }
+        .dependencies-table th,
+        .dependencies-table td {
+            padding: 0.25rem;
+        }
     }
 </style>
 {% endblock %}
